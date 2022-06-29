@@ -1,0 +1,19 @@
+---
+# control
+control:
+  data_name: CIFAR10
+  model_name: resnet9
+  num_clients: '5'
+  active_rate: '1'
+  data_split_mode: 'iid'
+  diff_val: '1e-1'
+# experiment
+pin_memory: True
+num_workers: 0
+init_seed: 0
+num_experiments: 1
+log_interval: 0.25
+device: cpu
+world_size: 1
+resume_mode: 0
+verbose: False
