@@ -18,8 +18,12 @@
 
 # print(1e-3 == 0.001)
 
-a = '1e-1'
+# a = '1e-1'
 
-b = float(a)
+# b = float(a)
 
-print(b == 0.1)
+# print(b == 0.1)
+from numpy import random
+a = [0,1,2,3,4,5]
+res = random.choice(a, 2)
+print(res)

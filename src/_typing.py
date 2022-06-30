@@ -109,3 +109,5 @@ Tag = Literal[
     'local',
     'global'
 ]
+
+Local_Gradient_Update = int

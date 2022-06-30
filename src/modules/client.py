@@ -38,12 +38,14 @@ class Client:
         self, 
         client_id: int, 
         model: ModelType, 
-        data_split: list[int]
+        data_split: list[int],
+        update_threshold: int
     ) -> None:
 
         self.client_id = client_id
         self.data_split = data_split
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        self.update_threshold=update_threshold
         self.total_params_num(model)
         optimizer = make_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
@@ -66,10 +68,14 @@ class Client:
         dataset: DatasetType, 
         lr: int, 
         metric: MetricType, 
-        logger: LoggerType
+        logger: LoggerType,
+        grad_interval: int
     ) -> None:
 
-        data_loader = make_data_loader({'train': dataset}, 'client')['train']
+        data_loader = make_data_loader(
+            dataset={'train': dataset}, 
+            tag='client'
+        )['train']
         model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
         model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
         model.load_state_dict(self.model_state_dict, strict=False)
@@ -77,19 +83,53 @@ class Client:
         optimizer = make_optimizer(model, 'local')
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
-        for epoch in range(1, cfg['local']['num_epochs'] + 1):
-            # print(f'epoch: {epoch}')
-            for i, input in enumerate(data_loader):
-                input = collate(input)
-                input_size = input['data'].size(0)
-                input = to_device(input, cfg['device'])
-                optimizer.zero_grad()
-                output = model(input)
-                output['loss'].backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-                optimizer.step()
-                evaluation = metric.evaluate(metric.metric_name['train'], input, output)
-                logger.append(evaluation, 'train', n=input_size)
+        
+        for i, input in enumerate(data_loader):
+            if i == grad_interval:
+                break
+        # for l in range(1, grad_interval + 1):
+            # pick batch
+            
+            input = collate(input)
+            input_size = input['data'].size(0)
+            input = to_device(input, cfg['device'])
+            optimizer.zero_grad()
+            output = model(input)
+            output['loss'].backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+            optimizer.step()
+            evaluation = metric.evaluate(
+                metric_names=metric.metric_name['train'], 
+                intput=input, 
+                output=output
+            )
+            logger.append(
+                result=evaluation, 
+                tag='train', 
+                n=input_size
+            )
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        # for epoch in range(1, cfg['local']['num_epochs'] + 1):
+        #     for i, input in enumerate(data_loader):
+        #         input = collate(input)
+        #         input_size = input['data'].size(0)
+        #         input = to_device(input, cfg['device'])
+        #         optimizer.zero_grad()
+        #         output = model(input)
+        #         output['loss'].backward()
+        #         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+        #         optimizer.step()
+        #         evaluation = metric.evaluate(
+        #             metric_names=metric.metric_name['train'], 
+        #             intput=input, 
+        #             output=output
+        #         )
+        #         logger.append(
+        #             result=evaluation, 
+        #             tag='train', 
+        #             n=input_size
+        #         )
+        # self.optimizer_state_dict = optimizer.state_dict()
+        # self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return

@@ -20,23 +20,18 @@ from _typing import (
 from models import make_batchnorm
 from optimizer.api import make_optimizer
 
-class Server:
+
+class ServerIteration:
 
     def __init__(
         self, model: ModelType
     ) -> None:
 
-        
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         optimizer = make_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
         global_optimizer = make_optimizer(model, 'global')
         self.global_optimizer_state_dict = global_optimizer.state_dict()
-
-        self.client_state_dicts = {}
-        self.client_params_diff = defaultdict(dict)
-        self.client_params_diff_count = defaultdict(dict)
-
 
     def distribute(
         self, client: dict[int, ClientType]
@@ -87,43 +82,4 @@ class Server:
                 client[i].active = False
         return
     
-    def store_client(
-        self, 
-        valid_client_idx: list[int],
-        valid_client: list[ClientType],
-    ) -> None:
-        
-        for m in range(len(valid_client_idx)):
-            self.client_state_dicts[valid_client_idx[m]] = copy.deepcopy(valid_client[m].model_state_dict)
-        return
-    
-    def cal_diff(
-        self,
-        model: ModelType,
-        valid_client_idx: list[int],
-        valid_client: list[ClientType],
-        epoch: int
-    ) -> None:
 
-        # round 2
-        # round 1
-        for k, v in model.named_parameters():
-            parameter_type = k.split('.')[-1]
-            if 'weight' in parameter_type or 'bias' in parameter_type:
-                for m in range(len(valid_client_idx)):
-                    if valid_client_idx[m] in self.client_state_dicts:
-                        diff = valid_client[m].model_state_dict[k] - self.client_state_dicts[valid_client_idx[m]][k]
-                        diff_count = torch.count_nonzero(torch.gt(torch.abs(diff), cfg['diff_val'])).item()
-                        # .float().mean()
-                        # 0 => diff 4901450
-                        # 1e-3(0.00001 => 0.001) => 10k
-                        # print(f'diff_count: {diff_count}')
-                        
-                        self.client_params_diff[epoch][valid_client_idx[m]] = diff
-                        self.client_params_diff_count[epoch][valid_client_idx[m]] = self.client_params_diff_count[epoch].get(valid_client_idx[m], 0) + diff_count
-
-            # print('diff')
-        if epoch in self.client_params_diff:
-            # print('ggggg', self.client_params_diff[epoch])
-            print(f'self.client_params_diff_count[epoch]: {self.client_params_diff_count[epoch]}')
-        return
