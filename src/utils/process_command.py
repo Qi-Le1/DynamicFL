@@ -1,0 +1,119 @@
+from numpy import number
+from ..config import cfg
+
+def process_ratio(ratio: str) -> list[float]:
+    ratio = ratio.split('-')
+    ratio = list(map(float, ratio))
+    if sum(ratio) != 1:
+        raise ValueError(
+            'sum of ratio must be 1'
+        )
+    return ratio
+
+def process_number_of_uploads(
+    number_of_uploads: str,
+    max_local_gradient_update: int
+) -> list[int]:
+    number_of_uploads = number_of_uploads.split('-')
+    number_of_uploads = list(map(int, number_of_uploads))
+    number_of_uploads = [min(i, max_local_gradient_update) for i in number_of_uploads]
+    return number_of_uploads
+
+
+def process_algo_parameters():
+    cfg['algo_mode'] = cfg['control']['algo_mode']
+    cfg['ratio'] = cfg['control']['ratio']
+    cfg['number_of_uploads'] = cfg['control']['number_of_uploads']
+    cfg['max_local_gradient_update'] = int(cfg['control']['max_local_gradient_update'])
+
+    if cfg['control']['algo_mode'] == 'fedsgd':
+        cfg['ratio'] = 1
+        cfg['number_of_uploads'] = cfg['max_local_gradient_update']
+    elif cfg['control']['algo_mode'] == 'fedavg':
+        cfg['ratio'] = 1
+        cfg['number_of_uploads'] = 1
+    elif cfg['control']['algo_mode'] == 'dynamicfl':
+        ratio = process_ratio(
+            ratio=cfg['control']['ratio']
+        )
+        number_of_uploads = process_number_of_uploads(
+            number_of_uploads=cfg['control']['number_of_uploads'],
+            max_local_gradient_update=cfg['max_local_gradient_update']
+        )
+        if len(cfg['ratio']) != len(cfg['number_of_uploads']):
+            raise ValueError(
+                'length of ratio is not equal to length of number_of_uploads'
+            )
+        
+        ratio_to_number_of_uploads = {}
+        for i in range(len(ratio)):
+            ratio_to_number_of_uploads[ratio[i]] = number_of_uploads[i]
+        cfg['ratio_to_number_of_uploads'] = ratio_to_number_of_uploads
+    return
+
+
+def process_command():
+    process_algo_parameters()
+    cfg['select_client_mode'] = cfg['control']['select_client_mode']
+    cfg['data_name'] = cfg['control']['data_name']
+    cfg['model_name'] = cfg['control']['model_name']
+    data_shape = {'CIFAR10': [3, 32, 32], 'CIFAR100': [3, 32, 32], 'SVHN': [3, 32, 32]}
+    cfg['data_shape'] = data_shape[cfg['data_name']]
+    cfg['conv'] = {'hidden_size': [32, 64]}
+    cfg['resnet9'] = {'hidden_size': [64, 128, 256, 512]}
+    # cfg['resnet9'] = {'hidden_size': [64, 128]}
+    cfg['resnet18'] = {'hidden_size': [64, 128, 256, 512]}
+    cfg['wresnet28x2'] = {'depth': 28, 'widen_factor': 2, 'drop_rate': 0.0}
+    cfg['wresnet28x8'] = {'depth': 28, 'widen_factor': 8, 'drop_rate': 0.0}
+    cfg['threshold'] = 0.95
+    cfg['alpha'] = 0.75
+    if 'num_clients' in cfg['control']:
+        cfg['num_clients'] = int(cfg['control']['num_clients'])
+        cfg['active_rate'] = float(cfg['control']['active_rate'])
+        cfg['data_split_mode'] = cfg['control']['data_split_mode']
+        cfg['diff_val'] = float(cfg['control']['diff_val'])
+        cfg['local_epoch'] = 5
+        cfg['gm'] = 0
+        cfg['server'] = {}
+        cfg['server']['shuffle'] = {'train': True, 'test': False}
+        cfg['server']['batch_size'] = {'train': 250, 'test': 500}
+        cfg['client'] = {}
+        cfg['client']['shuffle'] = {'train': True, 'test': False}
+        if cfg['num_clients'] > 10:
+            cfg['client']['batch_size'] = {'train': 10, 'test': 500}
+        elif cfg['num_clients'] > 1:
+            cfg['client']['batch_size'] = {'train': 100, 'test': 500}
+        else:
+            cfg['client']['batch_size'] = {'train': 250, 'test': 500}
+        cfg['local'] = {}
+        cfg['local']['optimizer_name'] = 'SGD'
+        cfg['local']['lr'] = 3e-2
+        cfg['local']['momentum'] = 0.9
+        cfg['local']['weight_decay'] = 5e-4
+        cfg['local']['nesterov'] = True
+        cfg['local']['num_epochs'] = cfg['local_epoch']
+        cfg['global'] = {}
+        cfg['global']['batch_size'] = {'train': 250, 'test': 500}
+        cfg['global']['shuffle'] = {'train': True, 'test': False}
+        if cfg['num_clients'] > 10:
+            cfg['global']['num_epochs'] = 800
+        else:
+            cfg['global']['num_epochs'] = 800
+        cfg['global']['optimizer_name'] = 'SGD'
+        cfg['global']['lr'] = 1
+        cfg['global']['momentum'] = cfg['gm']
+        cfg['global']['weight_decay'] = 0
+        cfg['global']['nesterov'] = False
+        cfg['global']['scheduler_name'] = 'CosineAnnealingLR'
+    else:
+        model_name = cfg['model_name']
+        cfg[model_name]['shuffle'] = {'train': True, 'test': False}
+        cfg[model_name]['optimizer_name'] = 'SGD'
+        cfg[model_name]['lr'] = 3e-2
+        cfg[model_name]['momentum'] = 0.9
+        cfg[model_name]['weight_decay'] = 5e-4
+        cfg[model_name]['nesterov'] = True
+        cfg[model_name]['scheduler_name'] = 'CosineAnnealingLR'
+        cfg[model_name]['num_epochs'] = 400
+        cfg[model_name]['batch_size'] = {'train': 250, 'test': 500}
+    return

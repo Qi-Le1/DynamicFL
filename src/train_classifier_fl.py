@@ -89,17 +89,25 @@ def make_model():
     return model
 
 def make_communication(client_id: list[int]) -> list[int]:
-    predefined_ratio = None
-    number_of_uploads = Communication.cal_number_of_uploads(
-        client_id=client_id,
-        max_local_gradient_update=cfg['max_local_gradient_update'],
-        predefined_ratio=predefined_ratio
-    )
-    update_thresholds = Communication.cal_update_thresholds(
-        max_local_gradient_update=cfg['max_local_gradient_update'],
-        number_of_uploads=number_of_uploads
-    )
-    return update_thresholds
+    if cfg['select_client_mode'] == 'fix':
+        ratio_to_update_thresholds = Communication.cal_fix_update_thresholds(
+            client_id=client_id,
+            max_local_gradient_update=cfg['max_local_gradient_update'],
+            ratio_to_number_of_uploads=cfg['ratio_to_number_of_uploads']
+        )
+        cfg['ratio_to_update_thresholds'] = ratio_to_update_thresholds
+        client_to_update_threshold = Communication.distribute_fix_update_thresholds(
+            client_id=client_id,
+            max_local_gradient_update=cfg['max_local_gradient_update'],
+            ratio_to_update_thresholds=ratio_to_update_thresholds
+        )
+    elif cfg['select_client_mode'] == 'dynamic':
+        client_to_update_threshold = {}
+        for id in client_id:
+            client_to_update_threshold[id] = None
+    else:
+        raise ValueError('select_client_mode must in fix or dynamic')
+    return client_to_update_threshold
 
 def make_server_iteration(model: ModelType) -> ServerType:
     server = ServerIteration(model)
@@ -115,7 +123,7 @@ def make_client(
 ) -> dict[int, ClientType]:
     client_id = torch.arange(cfg['num_clients'])
     client = [None for _ in range(cfg['num_clients'])]
-    update_thresholds = make_communication(client_id=client_id)
+    client_to_update_threshold = make_communication(client_id=client_id)
     for m in range(len(client)):
         client[m] = Client(
             client_id=client_id[m], 
@@ -124,7 +132,7 @@ def make_client(
                 'train': data_split['train'][m], 
                 'test': data_split['test'][m]
             },
-            update_threshold=update_thresholds[m]
+            update_threshold=client_to_update_threshold[m]
         )
     return client
 
@@ -215,7 +223,7 @@ def cal_grad_interval(
         grad_interval = cfg['max_local_gradient_update'] - local_grad_u + 1
     return grad_interval
 
-def is_local_gradient_update_valie(
+def is_local_gradient_update_valid(
     local_grad_u: int,
     update_threshold: int
 ) -> bool:
@@ -233,6 +241,20 @@ def is_local_gradient_update_valie(
     
     return False
 
+def update_update_threshold(
+    client: dict[int, ClientType],
+    client_id: list[int]
+): 
+    if cfg['select_client_mode'] == 'fix':
+        pass
+    elif cfg['select_client_mode'] == 'dynamic':
+        Communication.distribute_dynamic_update_thresholds(
+            client=client,
+            client_id=client_id,
+            ratio_to_update_thresholds=cfg['ratio_to_update_thresholds']
+        )
+    else:
+        raise ValueError('select_client_mode wrong')
 
 def train_client(
     dataset: DatasetType, 
@@ -263,6 +285,11 @@ def train_client(
         else:
             client[m].active = False
 
+    update_update_threshold(
+        client_id=client_id,
+        client=client
+    )
+
     for local_grad_u in range(1, cfg['max_local_gradient_update'] + 1):
         server_local_grad_update.distribute(
             local_grad_u=local_grad_u, 
@@ -273,7 +300,7 @@ def train_client(
             m = client_id[i]
             dataset_m = separate_dataset(dataset, client[m].data_split['train'])
 
-            if is_local_gradient_update_valie(
+            if is_local_gradient_update_valid(
                 local_grad_u=local_grad_u,
                 update_threshold=client[m].update_threshold
             ):
