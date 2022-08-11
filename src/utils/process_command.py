@@ -1,7 +1,8 @@
 from numpy import number
 from ..config import cfg
+from typing import List
 
-def process_ratio(ratio: str) -> list[float]:
+def process_ratio(ratio: str) -> List[float]:
     ratio = ratio.split('-')
     ratio = list(map(float, ratio))
     if sum(ratio) != 1:
@@ -13,7 +14,7 @@ def process_ratio(ratio: str) -> list[float]:
 def process_number_of_uploads(
     number_of_uploads: str,
     max_local_gradient_update: int
-) -> list[int]:
+) -> List[int]:
     number_of_uploads = number_of_uploads.split('-')
     number_of_uploads = list(map(int, number_of_uploads))
     number_of_uploads = [min(i, max_local_gradient_update) for i in number_of_uploads]
@@ -21,6 +22,17 @@ def process_number_of_uploads(
 
 
 def process_algo_parameters():
+    '''
+    process the algo parameter in the command
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    '''
     cfg['algo_mode'] = cfg['control']['algo_mode']
     cfg['ratio'] = cfg['control']['ratio']
     cfg['number_of_uploads'] = cfg['control']['number_of_uploads']
@@ -57,6 +69,7 @@ def process_command():
     cfg['select_client_mode'] = cfg['control']['select_client_mode']
     cfg['data_name'] = cfg['control']['data_name']
     cfg['model_name'] = cfg['control']['model_name']
+    cfg['algo_mode'] = cfg['control']['algo_mode']
     data_shape = {'CIFAR10': [3, 32, 32], 'CIFAR100': [3, 32, 32], 'SVHN': [3, 32, 32]}
     cfg['data_shape'] = data_shape[cfg['data_name']]
     cfg['conv'] = {'hidden_size': [32, 64]}

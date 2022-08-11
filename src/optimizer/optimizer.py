@@ -14,7 +14,18 @@ def make_optimizer(
     model: ModelType, 
     tag: Tag
 ) -> OptimizerType:
+    '''
+    Create optimizer for current model according to cfg[tag]['optimizer_name']
+    
+    Parameters
+    ----------
+    model: ModelType
+    tag: Tag
 
+    Returns
+    -------
+    OptimizerType
+    '''
     if cfg[tag]['optimizer_name'] == 'SGD':
         optimizer = optim.SGD(model.parameters(), lr=cfg[tag]['lr'], momentum=cfg[tag]['momentum'],
                               weight_decay=cfg[tag]['weight_decay'], nesterov=cfg[tag]['nesterov'])

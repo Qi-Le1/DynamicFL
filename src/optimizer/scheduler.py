@@ -14,7 +14,18 @@ def make_scheduler(
     optimizer: OptimizerType, 
     tag: Tag
 ) -> SchedulerType:
+    '''
+    Create scheduler for current model according to cfg[tag]['scheduler_name']
+    
+    Parameters
+    ----------
+    optimizer: OptimizerType
+    tag: Tag
 
+    Returns
+    -------
+    SchedulerType
+    '''
     if cfg[tag]['scheduler_name'] == 'None':
         scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[65535])
     elif cfg[tag]['scheduler_name'] == 'StepLR':
@@ -23,7 +34,7 @@ def make_scheduler(
         scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg[tag]['milestones'],
                                                    gamma=cfg[tag]['factor'])
     elif cfg[tag]['scheduler_name'] == 'ExponentialLR':
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     elif cfg[tag]['scheduler_name'] == 'CosineAnnealingLR':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg[tag]['num_epochs'], eta_min=0)
     elif cfg[tag]['scheduler_name'] == 'ReduceLROnPlateau':

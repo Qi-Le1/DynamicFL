@@ -32,15 +32,29 @@ from modules.api import (
     Communication
 )
 
-from modules.server.api import (
-    ServerIteration,
-    ServerLocalGradUpdate
+from modules.client.api import (
+    ClientDynamicFL,
+    ClientFedAvg,
+    ClientFedEnsemble,
+    ClientFedGen,
+    ClientFedProxy,
+    ClientFedSgd
 )
 
-from utils import (
+
+from modules.server.api import (
+    ServerDynamicFL,
+    ServerFedAvg,
+    ServerFedEnsemble,
+    ServerFedGen,
+    ServerFedProxy,
+    ServerFedSgd
+)
+
+from .utils.api import (
     save, 
     to_device, 
-    process_control, 
+    process_command, 
     process_dataset,  
     resume, 
     collate
@@ -74,7 +88,7 @@ process_args(args)
 
 
 def main():
-    process_control()
+    process_command()
     seeds = list(range(cfg['init_seed'], cfg['init_seed'] + cfg['num_experiments']))
     for i in range(cfg['num_experiments']):
         model_tag_list = [str(seeds[i]), cfg['control_name']]
@@ -88,53 +102,104 @@ def make_model():
     model.apply(lambda m: models.make_batchnorm(m, momentum=None, track_running_stats=False))
     return model
 
-def make_communication(client_id: list[int]) -> list[int]:
+def make_communication(client_ids: list[int]) -> list[int]:
     if cfg['select_client_mode'] == 'fix':
         ratio_to_update_thresholds = Communication.cal_fix_update_thresholds(
-            client_id=client_id,
+            client_ids=client_ids,
             max_local_gradient_update=cfg['max_local_gradient_update'],
             ratio_to_number_of_uploads=cfg['ratio_to_number_of_uploads']
         )
         cfg['ratio_to_update_thresholds'] = ratio_to_update_thresholds
         client_to_update_threshold = Communication.distribute_fix_update_thresholds(
-            client_id=client_id,
+            client_ids=client_ids,
             max_local_gradient_update=cfg['max_local_gradient_update'],
             ratio_to_update_thresholds=ratio_to_update_thresholds
         )
     elif cfg['select_client_mode'] == 'dynamic':
         client_to_update_threshold = {}
-        for id in client_id:
+        for id in client_ids:
             client_to_update_threshold[id] = None
     else:
         raise ValueError('select_client_mode must in fix or dynamic')
     return client_to_update_threshold
 
-def make_server_iteration(model: ModelType) -> ServerType:
-    server = ServerIteration(model)
-    return server
-
-def make_server_local_grad_update(model: ModelType) -> ServerType:
-    server = ServerLocalGradUpdate(model)
-    return server
-
-def make_client(
+def make_clients(
     model: ModelType, 
     data_split: dict[str, dict[int, list[int]]],
 ) -> dict[int, ClientType]:
-    client_id = torch.arange(cfg['num_clients'])
-    client = [None for _ in range(cfg['num_clients'])]
-    client_to_update_threshold = make_communication(client_id=client_id)
-    for m in range(len(client)):
-        client[m] = Client(
-            client_id=client_id[m], 
-            model=model, 
-            data_split={
-                'train': data_split['train'][m], 
-                'test': data_split['test'][m]
-            },
-            update_threshold=client_to_update_threshold[m]
+    '''
+    Create corresponding server to cfg['algo_mode']
+    
+    Parameters
+    ----------
+    model: ModelType
+
+    Returns
+    -------
+    ServerType
+    '''
+    if cfg['algo_mode'] == 'dynamicfl':
+        return ClientDynamicFL.make_clients(
+            model=model,
+            data_split=data_split
         )
-    return client
+    elif cfg['algo_mode'] == 'fedavg':
+        return ClientFedAvg.make_clients(
+            model=model,
+            data_split=data_split
+        )
+    elif cfg['algo_mode'] == 'fedensemble':
+        return ClientFedEnsemble.make_clients(
+            model=model,
+            data_split=data_split
+        )
+    elif cfg['algo_mode'] == 'fedgen':
+        return ClientFedGen.make_clients(
+            model=model,
+            data_split=data_split
+        )
+    elif cfg['algo_mode'] == 'fedproxy':
+        return ClientFedProxy.make_clients(
+            model=model,
+            data_split=data_split
+        )
+    elif cfg['algo_mode'] == 'fedsgd':
+        return ClientFedSgd.make_clients(
+            model=model,
+            data_split=data_split
+        )
+    else:
+        raise ValueError('wrong algo model')
+    
+def make_server(model: ModelType) -> ServerType:
+    '''
+    Create corresponding server to cfg['algo_mode']
+    
+    Parameters
+    ----------
+    model: ModelType
+
+    Returns
+    -------
+    ServerType
+    '''
+    if cfg['algo_mode'] == 'dynamicfl':
+        return ServerDynamicFL(model)
+    elif cfg['algo_mode'] == 'fedavg':
+        return ServerFedAvg(model)
+    elif cfg['algo_mode'] == 'fedensemble':
+        return ServerFedEnsemble(model)
+    elif cfg['algo_mode'] == 'fedgen':
+        return ServerFedGen(model)
+    elif cfg['algo_mode'] == 'fedproxy':
+        return ServerFedProxy(model)
+    elif cfg['algo_mode'] == 'fedsgd':
+        return ServerFedSgd(model)
+    else:
+        raise ValueError('wrong algo model')
+
+
+
 
 
 def runExperiment():
@@ -153,34 +218,33 @@ def runExperiment():
     result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
     if result is None:
         last_epoch = 1
-        server_iteration = make_server_iteration(model)
-        server_local_grad_update = make_server_local_grad_update(model)
-        client = make_client(model, data_split)
+        server = make_server(model)
+        clients = make_clients(model, data_split)
         logger = make_logger(os.path.join('output', 'runs', 'train_{}'.format(cfg['model_tag'])))
     else:
         last_epoch = result['epoch']
         data_split = result['data_split']
-        server_iteration = result['server_iteration']
-        client = result['client']
+        server = result['server']
+        clients = result['clients']
         optimizer.load_state_dict(result['optimizer_state_dict'])
         scheduler.load_state_dict(result['scheduler_state_dict'])
         logger = result['logger']
     for epoch in range(last_epoch, cfg['global']['num_epochs'] + 1):
-        train_client(
+        train_clients(
             dataset=dataset['train'], 
-            server_iteration=server_iteration, 
-            client=client, 
+            server=server, 
+            clients=clients, 
             optimizer=optimizer, 
             metric=metric, 
             logger=logger, 
             epoch=epoch
         )
-        server_iteration.update(
-            client=client, 
+        server.update(
+            clients=clients, 
             epoch=epoch
         )
         scheduler.step()
-        model.load_state_dict(server_iteration.model_state_dict)
+        model.load_state_dict(server.model_state_dict)
         test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
         test(
             data_loader=data_loader['test'], 
@@ -192,8 +256,8 @@ def runExperiment():
         result = {
             'cfg': cfg, 
             'epoch': epoch + 1, 
-            'server_iteration': server_iteration, 
-            'client': client,
+            'server': server, 
+            'clients': clients,
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(), 
             'data_split': data_split, 
@@ -242,25 +306,45 @@ def is_local_gradient_update_valid(
     return False
 
 def update_update_threshold(
-    client: dict[int, ClientType],
-    client_id: list[int]
+    clients: dict[int, ClientType],
+    client_ids: list[int]
 ): 
     if cfg['select_client_mode'] == 'fix':
         pass
     elif cfg['select_client_mode'] == 'dynamic':
         Communication.distribute_dynamic_update_thresholds(
-            client=client,
-            client_id=client_id,
+            clients=clients,
+            client_ids=client_ids,
             ratio_to_update_thresholds=cfg['ratio_to_update_thresholds']
         )
     else:
         raise ValueError('select_client_mode wrong')
 
-def train_client(
+def combine_dataset(
+    num_active_clients: int,
+    clients: dict[int, ClientType],
+    client_ids: list[int],
+    dataset: DatasetType
+) -> DatasetType:  
+    '''
+    combine the datapoint index for selected clients
+    and return the dataset
+    '''
+    combined_datapoint_idx = []
+    for i in range(num_active_clients):
+        m = client_ids[i]
+        combined_datapoint_idx = combined_datapoint_idx + clients[m].data_split['train']
+
+    # dataset: DatasetType
+    dataset = separate_dataset(dataset, combined_datapoint_idx)
+    return dataset
+
+
+def train_clients(
     dataset: DatasetType, 
-    server_iteration: ServerType, 
+    server: ServerType, 
     server_local_grad_update: ServerType,
-    client: dict[int, ClientType], 
+    clients: dict[int, ClientType], 
     optimizer: OptimizerType, 
     metric: MetricType, 
     logger: LoggerType, 
@@ -269,63 +353,100 @@ def train_client(
 
     logger.safe(True)
     num_active_clients = int(np.ceil(cfg['active_rate'] * cfg['num_clients']))
-    client_id = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
+    client_ids = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
     for i in range(num_active_clients):
-        client[client_id[i]].active = True
-    server_iteration.distribute(client)
-    num_active_clients = len(client_id)
+        clients[client_ids[i]].active = True
+    server.distribute(clients)
+    num_active_clients = len(client_ids)
     start_time = time.time()
     lr = optimizer.param_groups[0]['lr']
 
     for i in range(num_active_clients):
-        m = client_id[i]
-        dataset_m = separate_dataset(dataset, client[m].data_split['train'])
+        m = client_ids[i]
+        dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
         if dataset_m is not None:
-            client[m].active = True
+            clients[m].active = True
         else:
-            client[m].active = False
+            clients[m].active = False
 
-    update_update_threshold(
-        client_id=client_id,
-        client=client
-    )
-
-    for local_grad_u in range(1, cfg['max_local_gradient_update'] + 1):
-        server_local_grad_update.distribute(
-            local_grad_u=local_grad_u, 
-            client=client
+    if cfg['algo_mode'] == 'fedsgd':
+        # combine datasets of the active clients,
+        # so that we can only train 1 model for fedsgd.
+        # Decrease computation time
+        combinedDataset = combine_dataset(
+            num_active_clients=num_active_clients,
+            clients=clients,
+            client_ids=client_ids,
+        )
+        
+        client = Client(
+            client_id=0, 
+            model=make_model(), 
+            data_split={
+                'train': None, 
+                'test': None
+            },
+            update_threshold=cfg['max_local_gradient_update'][m]
         )
 
-        for i in range(num_active_clients):
-            m = client_id[i]
-            dataset_m = separate_dataset(dataset, client[m].data_split['train'])
+        client[0].train(
+            dataset=combinedDataset, 
+            lr=lr, 
+            metric=metric, 
+            logger=logger,
+            grad_interval=grad_interval
+        )
+    elif cfg['algo_mode'] == 'fedavg':
+        pass
+    elif cfg['algo_mode'] == 'fedprox':
+        pass
+    elif cfg['algo_mode'] == 'fedensemble':
+        pass
+    elif cfg['algo_mode'] == 'fedgen':
+        pass
+    elif cfg['algo_mode'] == 'dynamicfl':
+        # handle fix and dynamic selecting cliend mode
+        update_update_threshold(
+            client_id=client_id,
+            clients=clients
+        )
 
-            if is_local_gradient_update_valid(
-                local_grad_u=local_grad_u,
-                update_threshold=client[m].update_threshold
-            ):
-                # 判断是否进入, 因为一次训练Interval个local gradient
-                grad_interval = cal_grad_interval(
+        for local_grad_u in range(1, cfg['max_local_gradient_update'] + 1):
+            server_local_grad_update.distribute(
+                local_grad_u=local_grad_u, 
+                clients=clients
+            )
+
+            for i in range(num_active_clients):
+                m = client_ids[i]
+                dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
+
+                if is_local_gradient_update_valid(
                     local_grad_u=local_grad_u,
-                    update_threshold=client[m].update_threshold
-                )
+                    update_threshold=clients[m].update_threshold
+                ):
+                    # 判断是否进入, 因为一次训练Interval个local gradient
+                    grad_interval = cal_grad_interval(
+                        local_grad_u=local_grad_u,
+                        update_threshold=clients[m].update_threshold
+                    )
 
-                client[m].train(
-                    dataset=dataset_m, 
-                    lr=lr, 
-                    metric=metric, 
-                    logger=logger,
-                    grad_interval=grad_interval
-                )
+                    clients[m].train(
+                        dataset=dataset_m, 
+                        lr=lr, 
+                        metric=metric, 
+                        logger=logger,
+                        grad_interval=grad_interval
+                    )
 
-                server_local_grad_update.upload(
-                    # subtract 1
-                    target_grad_u=local_grad_u+grad_interval-1,
-                    cur_client_id=m,
-                    client=client[m]
-                )
+                    server_local_grad_update.upload(
+                        # subtract 1
+                        target_grad_u=local_grad_u+grad_interval-1,
+                        cur_client_id=m,
+                        clients=clients[m]
+                    )
 
-        server_local_grad_update.update(local_grad_u=local_grad_u)
+            server_local_grad_update.update(local_grad_u=local_grad_u)
             
             
     for i in range(num_active_clients):            
@@ -338,7 +459,7 @@ def train_client(
             info = {'info': ['Model: {}'.format(cfg['model_tag']),
                                 'Train Epoch (C): {}({:.0f}%)'.format(epoch, exp_progress),
                                 'Learning rate: {:.6f}'.format(lr),
-                                'ID: {}({}/{})'.format(client_id[i], i + 1, num_active_clients),
+                                'ID: {}({}/{})'.format(client_ids[i], i + 1, num_active_clients),
                                 'Epoch Finished Time: {}'.format(epoch_finished_time),
                                 'Experiment Finished Time: {}'.format(exp_finished_time)]}
             logger.append(info, 'train', mean=False)

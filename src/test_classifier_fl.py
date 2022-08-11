@@ -45,6 +45,9 @@ def runExperiment():
     model.load_state_dict(result['server'].model_state_dict)
     data_loader = make_data_loader(dataset, 'server')
     test_logger = make_logger(os.path.join('output', 'runs', 'test_{}'.format(cfg['model_tag'])))
+    # 训练用局部statistic, 不track => 不算momentum => 算全局statistic
+    # 测试用全局statistic
+    # 用model在全部数据集上运行，记录statistic
     test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
     test(data_loader['test'], test_model, metric, test_logger, last_epoch)
     result = resume(cfg['model_tag'], load_tag='checkpoint')

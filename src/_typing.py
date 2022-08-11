@@ -45,10 +45,16 @@ if TYPE_CHECKING:
 
     from modules.api import (
         Client,
-        Server
     )
-    # from modules.client import Client
-    # from modules.server import Server
+    
+    from modules.server.api import (
+        ServerDynamicFL,
+        ServerFedAvg,
+        ServerFedEnsemble,
+        ServerFedGen,
+        ServerFedProxy,
+        ServerFedSgd
+    )
 
 from torch.utils.data import DataLoader
 
@@ -103,7 +109,14 @@ LoggerType = type['Logger']
 
 ClientType = type['Client']
 
-ServerType = type['Server']
+ServerType = Union[
+    type[ServerDynamicFL],
+    type[ServerFedAvg],
+    type[ServerFedEnsemble],
+    type[ServerFedGen],
+    type[ServerFedProxy],
+    type[ServerFedSgd]
+]
 
 Tag = Literal[
     'local',
