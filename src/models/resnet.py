@@ -26,7 +26,8 @@ class Block(nn.Module):
         out = F.relu(self.n1(x))
         shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-        out = self.conv2(F.relu(self.n2(out)))
+        out = F.relu(self.n2(out))
+        out = self.conv2(out)
         out += shortcut
         return out
 

@@ -2,6 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from config import cfg
+from .cnn import CNN
+
+def create_model(track_running_stats=False):
+    if cfg['model_name'] == 'CNN':
+        model = CNN()
+    
+    model.to(cfg["device"])
+    model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=track_running_stats))
+    return model
 
 def init_param(m):
     if isinstance(m, nn.Conv2d):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import datetime
 
-import models
 import os
 import shutil
 import time
@@ -27,9 +26,10 @@ from data import (
 
 from metrics import Metric
 
-from modules.api import (
-    Client,
-    Communication
+from models.api import (
+    CNN,
+    create_model,
+    make_batchnorm
 )
 
 from modules.client.api import (
@@ -52,6 +52,7 @@ from modules.server.api import (
 )
 
 from .utils.api import (
+    create_model,
     save, 
     to_device, 
     process_command, 
@@ -74,8 +75,8 @@ from _typing import (
 from logger import Logger, make_logger
 
 from optimizer.api import (
-    make_optimizer,
-    make_scheduler
+    create_optimizer,
+    create_scheduler
 )
 
 cudnn.benchmark = True
@@ -96,11 +97,6 @@ def main():
         print('Experiment: {}'.format(cfg['model_tag']))
         runExperiment()
     return
-
-def make_model():
-    model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-    model.apply(lambda m: models.make_batchnorm(m, momentum=None, track_running_stats=False))
-    return model
 
 def make_communication(client_ids: list[int]) -> list[int]:
     if cfg['select_client_mode'] == 'fix':
@@ -123,7 +119,7 @@ def make_communication(client_ids: list[int]) -> list[int]:
         raise ValueError('select_client_mode must in fix or dynamic')
     return client_to_update_threshold
 
-def make_clients(
+def create_clients(
     model: ModelType, 
     data_split: dict[str, dict[int, list[int]]],
 ) -> dict[int, ClientType]:
@@ -139,39 +135,39 @@ def make_clients(
     ServerType
     '''
     if cfg['algo_mode'] == 'dynamicfl':
-        return ClientDynamicFL.make_clients(
+        return ClientDynamicFL.create_clients(
             model=model,
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedavg':
-        return ClientFedAvg.make_clients(
+        return ClientFedAvg.create_clients(
             model=model,
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedensemble':
-        return ClientFedEnsemble.make_clients(
+        return ClientFedEnsemble.create_clients(
             model=model,
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedgen':
-        return ClientFedGen.make_clients(
+        return ClientFedGen.create_clients(
             model=model,
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedproxy':
-        return ClientFedProxy.make_clients(
+        return ClientFedProxy.create_clients(
             model=model,
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedsgd':
-        return ClientFedSgd.make_clients(
+        return ClientFedSgd.create_clients(
             model=model,
             data_split=data_split
         )
     else:
         raise ValueError('wrong algo model')
     
-def make_server(model: ModelType) -> ServerType:
+def create_server(model: ModelType) -> ServerType:
     '''
     Create corresponding server to cfg['algo_mode']
     
@@ -200,8 +196,6 @@ def make_server(model: ModelType) -> ServerType:
 
 
 
-
-
 def runExperiment():
     cfg['seed'] = int(cfg['model_tag'].split('_')[0])
     torch.manual_seed(cfg['seed'])
@@ -209,39 +203,39 @@ def runExperiment():
     dataset = fetch_dataset(cfg['data_name'])
     process_dataset(dataset)
     data_loader = make_data_loader(dataset, 'global')
-    model = make_model()
-    optimizer = make_optimizer(model, 'local')
-    scheduler = make_scheduler(optimizer, 'global')
+    model = create_model()
+    optimizer = create_optimizer(model, 'local')
+    scheduler = create_scheduler(optimizer, 'global')
     batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
     data_split = split_dataset(dataset, cfg['num_clients'], cfg['data_split_mode'])
     metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
+
     result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
     if result is None:
-        last_epoch = 1
-        server = make_server(model)
-        clients = make_clients(model, data_split)
+        last_global_epoch = 1
+        clients = create_clients(model, data_split)
+        server = create_server(model, clients)
         logger = make_logger(os.path.join('output', 'runs', 'train_{}'.format(cfg['model_tag'])))
     else:
-        last_epoch = result['epoch']
+        last_global_epoch = result['global_epoch']
         data_split = result['data_split']
         server = result['server']
         clients = result['clients']
         optimizer.load_state_dict(result['optimizer_state_dict'])
         scheduler.load_state_dict(result['scheduler_state_dict'])
         logger = result['logger']
-    for epoch in range(last_epoch, cfg['global']['num_epochs'] + 1):
-        train_clients(
-            dataset=dataset['train'], 
-            server=server, 
-            clients=clients, 
+
+    for global_epoch in range(last_global_epoch, cfg['global']['num_epochs'] + 1):
+        server.train_clients(
+            dataset=dataset, 
             optimizer=optimizer, 
             metric=metric, 
             logger=logger, 
-            epoch=epoch
+            global_epoch=global_epoch
         )
-        server.update(
+        server.update_global_model(
             clients=clients, 
-            epoch=epoch
+            global_epoch=global_epoch
         )
         scheduler.step()
         model.load_state_dict(server.model_state_dict)
@@ -251,11 +245,12 @@ def runExperiment():
             model=test_model, 
             metric=metric, 
             logge=logger, 
-            epoch=epoch
+            global_epoch=global_epoch
         )
+
         result = {
             'cfg': cfg, 
-            'epoch': epoch + 1, 
+            'global_epoch': global_epoch + 1, 
             'server': server, 
             'clients': clients,
             'optimizer_state_dict': optimizer.state_dict(),
@@ -264,11 +259,56 @@ def runExperiment():
             'logger': logger,
         }
         save(result, './output/model/{}_checkpoint.pt'.format(cfg['model_tag']))
+
         if metric.compare(logger.mean['test/{}'.format(metric.pivot_name)]):
             metric.update(logger.mean['test/{}'.format(metric.pivot_name)])
             shutil.copy('./output/model/{}_checkpoint.pt'.format(cfg['model_tag']),
                         './output/model/{}_best.pt'.format(cfg['model_tag']))
         logger.reset()
+    return
+
+
+def train_clients(
+    dataset: DatasetType, 
+    server: ServerType, 
+    optimizer: OptimizerType, 
+    metric: MetricType, 
+    logger: LoggerType, 
+    global_epoch: int
+) -> None:
+
+    server.train_clients(
+        dataset=dataset, 
+        optimizer=optimizer, 
+        metric=metric, 
+        logger=logger, 
+        global_epoch=global_epoch
+    )
+    return
+
+
+def test(
+    data_loader: DataLoaderType, 
+    model: ModelType, 
+    metric: MetricType, 
+    logger: LoggerType, 
+    epoch: int
+) -> None:
+
+    logger.safe(True)
+    with torch.no_grad():
+        model.train(False)
+        for i, input in enumerate(data_loader):
+            input = collate(input)
+            input_size = input['data'].size(0)
+            input = to_device(input, cfg['device'])
+            output = model(input)
+            evaluation = metric.evaluate(metric.metric_name['test'], input, output)
+            logger.append(evaluation, 'test', input_size)
+        info = {'info': ['Model: {}'.format(cfg['model_tag']), 'Test Epoch: {}({:.0f}%)'.format(epoch, 100.)]}
+        logger.append(info, 'test', mean=False)
+        print(logger.write('test', metric.metric_name['test']))
+    logger.safe(False)
     return
 
 def cal_grad_interval(
@@ -340,157 +380,125 @@ def combine_dataset(
     return dataset
 
 
-def train_clients(
-    dataset: DatasetType, 
-    server: ServerType, 
-    server_local_grad_update: ServerType,
-    clients: dict[int, ClientType], 
-    optimizer: OptimizerType, 
-    metric: MetricType, 
-    logger: LoggerType, 
-    epoch: int
-) -> None:
+# def train_clients(
+#     dataset: DatasetType, 
+#     server: ServerType, 
+#     server_local_grad_update: ServerType,
+#     optimizer: OptimizerType, 
+#     metric: MetricType, 
+#     logger: LoggerType, 
+#     global_epoch: int
+# ) -> None:
 
-    logger.safe(True)
-    num_active_clients = int(np.ceil(cfg['active_rate'] * cfg['num_clients']))
-    client_ids = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
-    for i in range(num_active_clients):
-        clients[client_ids[i]].active = True
-    server.distribute(clients)
-    num_active_clients = len(client_ids)
-    start_time = time.time()
-    lr = optimizer.param_groups[0]['lr']
+#     server.train_clients(
+#         dataset=dataset, 
+#         optimizer=optimizer, 
+#         metric=metric, 
+#         logger=logger, 
+#         global_epoch=global_epoch
+#     )
 
-    for i in range(num_active_clients):
-        m = client_ids[i]
-        dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
-        if dataset_m is not None:
-            clients[m].active = True
-        else:
-            clients[m].active = False
+#     logger.safe(True)
+#     num_active_clients = int(np.ceil(cfg['active_rate'] * cfg['num_clients']))
+#     client_ids = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
+#     for i in range(num_active_clients):
+#         clients[client_ids[i]].active = True
+#     server.distribute(clients)
+#     num_active_clients = len(client_ids)
+#     start_time = time.time()
+#     lr = optimizer.param_groups[0]['lr']
 
-    if cfg['algo_mode'] == 'fedsgd':
-        # combine datasets of the active clients,
-        # so that we can only train 1 model for fedsgd.
-        # Decrease computation time
-        combinedDataset = combine_dataset(
-            num_active_clients=num_active_clients,
-            clients=clients,
-            client_ids=client_ids,
-        )
+#     for i in range(num_active_clients):
+#         m = client_ids[i]
+#         dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
+#         if dataset_m is not None:
+#             clients[m].active = True
+#         else:
+#             clients[m].active = False
+
+#     if cfg['algo_mode'] == 'fedsgd':
+#         # combine datasets of the active clients,
+#         # so that we can only train 1 model for fedsgd.
+#         # Decrease computation time
+#         combinedDataset = combine_dataset(
+#             num_active_clients=num_active_clients,
+#             clients=clients,
+#             client_ids=client_ids,
+#         )
         
-        client = Client(
-            client_id=0, 
-            model=make_model(), 
-            data_split={
-                'train': None, 
-                'test': None
-            },
-            update_threshold=cfg['max_local_gradient_update'][m]
-        )
+#         client = Client(
+#             client_id=0, 
+#             model=create_model(), 
+#             data_split={
+#                 'train': None, 
+#                 'test': None
+#             },
+#             update_threshold=cfg['max_local_gradient_update'][m]
+#         )
 
-        client[0].train(
-            dataset=combinedDataset, 
-            lr=lr, 
-            metric=metric, 
-            logger=logger,
-            grad_interval=grad_interval
-        )
-    elif cfg['algo_mode'] == 'fedavg':
-        pass
-    elif cfg['algo_mode'] == 'fedprox':
-        pass
-    elif cfg['algo_mode'] == 'fedensemble':
-        pass
-    elif cfg['algo_mode'] == 'fedgen':
-        pass
-    elif cfg['algo_mode'] == 'dynamicfl':
-        # handle fix and dynamic selecting cliend mode
-        update_update_threshold(
-            client_id=client_id,
-            clients=clients
-        )
+#         client[0].train(
+#             dataset=combinedDataset, 
+#             lr=lr, 
+#             metric=metric, 
+#             logger=logger,
+#             grad_interval=grad_interval
+#         )
+#     elif cfg['algo_mode'] == 'fedavg':
+#         pass
+#     elif cfg['algo_mode'] == 'fedprox':
+#         pass
+#     elif cfg['algo_mode'] == 'fedensemble':
+#         pass
+#     elif cfg['algo_mode'] == 'fedgen':
+#         pass
+#     elif cfg['algo_mode'] == 'dynamicfl':
+#         # handle fix and dynamic selecting cliend mode
+#         update_update_threshold(
+#             client_id=client_id,
+#             clients=clients
+#         )
 
-        for local_grad_u in range(1, cfg['max_local_gradient_update'] + 1):
-            server_local_grad_update.distribute(
-                local_grad_u=local_grad_u, 
-                clients=clients
-            )
+#         for local_grad_u in range(1, cfg['max_local_gradient_update'] + 1):
+#             server_local_grad_update.distribute(
+#                 local_grad_u=local_grad_u, 
+#                 clients=clients
+#             )
 
-            for i in range(num_active_clients):
-                m = client_ids[i]
-                dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
+#             for i in range(num_active_clients):
+#                 m = client_ids[i]
+#                 dataset_m = separate_dataset(dataset, clients[m].data_split['train'])
 
-                if is_local_gradient_update_valid(
-                    local_grad_u=local_grad_u,
-                    update_threshold=clients[m].update_threshold
-                ):
-                    # 判断是否进入, 因为一次训练Interval个local gradient
-                    grad_interval = cal_grad_interval(
-                        local_grad_u=local_grad_u,
-                        update_threshold=clients[m].update_threshold
-                    )
+#                 if is_local_gradient_update_valid(
+#                     local_grad_u=local_grad_u,
+#                     update_threshold=clients[m].update_threshold
+#                 ):
+#                     # 判断是否进入, 因为一次训练Interval个local gradient
+#                     grad_interval = cal_grad_interval(
+#                         local_grad_u=local_grad_u,
+#                         update_threshold=clients[m].update_threshold
+#                     )
 
-                    clients[m].train(
-                        dataset=dataset_m, 
-                        lr=lr, 
-                        metric=metric, 
-                        logger=logger,
-                        grad_interval=grad_interval
-                    )
+#                     clients[m].train(
+#                         dataset=dataset_m, 
+#                         lr=lr, 
+#                         metric=metric, 
+#                         logger=logger,
+#                         grad_interval=grad_interval
+#                     )
 
-                    server_local_grad_update.upload(
-                        # subtract 1
-                        target_grad_u=local_grad_u+grad_interval-1,
-                        cur_client_id=m,
-                        clients=clients[m]
-                    )
+#                     server_local_grad_update.upload(
+#                         # subtract 1
+#                         target_grad_u=local_grad_u+grad_interval-1,
+#                         cur_client_id=m,
+#                         clients=clients[m]
+#                     )
 
-            server_local_grad_update.update(local_grad_u=local_grad_u)
+#             server_local_grad_update.update(local_grad_u=local_grad_u)
             
-            
-    for i in range(num_active_clients):            
-        if i % int((num_active_clients * cfg['log_interval']) + 1) == 0:
-            _time = (time.time() - start_time) / (i + 1)
-            epoch_finished_time = datetime.timedelta(seconds=_time * (num_active_clients - i - 1))
-            exp_finished_time = epoch_finished_time + datetime.timedelta(
-                seconds=round((cfg['global']['num_epochs'] - epoch) * _time * num_active_clients))
-            exp_progress = 100. * i / num_active_clients
-            info = {'info': ['Model: {}'.format(cfg['model_tag']),
-                                'Train Epoch (C): {}({:.0f}%)'.format(epoch, exp_progress),
-                                'Learning rate: {:.6f}'.format(lr),
-                                'ID: {}({}/{})'.format(client_ids[i], i + 1, num_active_clients),
-                                'Epoch Finished Time: {}'.format(epoch_finished_time),
-                                'Experiment Finished Time: {}'.format(exp_finished_time)]}
-            logger.append(info, 'train', mean=False)
-            print(logger.write('train', metric.metric_name['train']))
-    logger.safe(False)
-    return
+#     return
 
 
-def test(
-    data_loader: DataLoaderType, 
-    model: ModelType, 
-    metric: MetricType, 
-    logger: LoggerType, 
-    epoch: int
-) -> None:
 
-    logger.safe(True)
-    with torch.no_grad():
-        model.train(False)
-        for i, input in enumerate(data_loader):
-            input = collate(input)
-            input_size = input['data'].size(0)
-            input = to_device(input, cfg['device'])
-            output = model(input)
-            evaluation = metric.evaluate(metric.metric_name['test'], input, output)
-            logger.append(evaluation, 'test', input_size)
-        info = {'info': ['Model: {}'.format(cfg['model_tag']), 'Test Epoch: {}({:.0f}%)'.format(epoch, 100.)]}
-        logger.append(info, 'test', mean=False)
-        print(logger.write('test', metric.metric_name['test']))
-    logger.safe(False)
-    return
 
 
 if __name__ == "__main__":

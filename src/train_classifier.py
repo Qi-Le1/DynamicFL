@@ -10,7 +10,7 @@ import torch.backends.cudnn as cudnn
 from config import cfg, process_args
 from data import fetch_dataset, make_data_loader, make_batchnorm_stats
 from metrics import Metric
-from utils import save, to_device, process_control, process_dataset, make_optimizer, make_scheduler, resume, collate
+from utils import save, to_device, process_control, process_dataset, create_optimizer, create_scheduler, resume, collate
 from logger import make_logger
 
 cudnn.benchmark = True
@@ -41,8 +41,8 @@ def runExperiment():
     process_dataset(dataset)
     data_loader = make_data_loader(dataset, cfg['model_name'])
     model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-    optimizer = make_optimizer(model, cfg['model_name'])
-    scheduler = make_scheduler(optimizer, cfg['model_name'])
+    optimizer = create_optimizer(model, cfg['model_name'])
+    scheduler = create_scheduler(optimizer, cfg['model_name'])
     metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
     result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
     if result is None:

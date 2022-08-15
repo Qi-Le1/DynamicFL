@@ -18,7 +18,7 @@ from _typing import (
 )
 
 from models import make_batchnorm
-from optimizer.api import make_optimizer
+from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 
 class ServerDynamicFL(ServerBase):
@@ -28,9 +28,9 @@ class ServerDynamicFL(ServerBase):
     ) -> None:
 
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        optimizer = make_optimizer(model, 'local')
+        optimizer = create_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
-        global_optimizer = make_optimizer(model, 'global')
+        global_optimizer = create_optimizer(model, 'global')
         self.global_optimizer_state_dict = global_optimizer.state_dict()
 
         # dict[int, list]
@@ -104,7 +104,7 @@ class ServerDynamicFL(ServerBase):
                 model = eval('models.{}()'.format(cfg['model_name']))
                 model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
                 model.load_state_dict(self.model_state_dict)
-                global_optimizer = make_optimizer(model, 'global')
+                global_optimizer = create_optimizer(model, 'global')
                 global_optimizer.load_state_dict(self.global_optimizer_state_dict)
                 global_optimizer.zero_grad()
                 weight = torch.ones(len(new_model_parameters_list))

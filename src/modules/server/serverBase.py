@@ -17,69 +17,58 @@ from _typing import (
     ClientType
 )
 
-from models import make_batchnorm
-from optimizer.api import make_optimizer
+from models.api import (
+    create_model,
+    make_batchnorm
+)
+from optimizer.api import create_optimizer
 
 
 class ServerBase:
 
     def __init__(
-        self, model: ModelType
+        self
     ) -> None:
+        pass
+    
+    def create_model(self, track_running_stats=False):
+        return create_model(track_running_stats=track_running_stats)
 
-        self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        optimizer = make_optimizer(model, 'local')
-        self.optimizer_state_dict = optimizer.state_dict()
-        global_optimizer = make_optimizer(model, 'global')
-        self.global_optimizer_state_dict = global_optimizer.state_dict()
+    def add_log(
+        self,
+        i,
+        num_active_clients,
+        start_time,
+        global_epoch,
+        lr,
+        selected_client_ids,
+        metric,
+        logger
+    ):
+        if i % int((num_active_clients * cfg['log_interval']) + 1) == 0:
+            _time = (time.time() - start_time) / (i + 1)
+            global_epoch_finished_time = datetime.timedelta(seconds=_time * (num_active_clients - i - 1))
+            exp_finished_time = global_epoch_finished_time + datetime.timedelta(
+                seconds=round((cfg['global']['num_epochs'] - global_epoch) * _time * num_active_clients))
+            exp_progress = 100. * i / num_active_clients
+            info = {'info': ['Model: {}'.format(cfg['model_tag']),
+                            'Train Epoch (C): {}({:.0f}%)'.format(global_epoch, exp_progress),
+                            'Learning rate: {:.6f}'.format(lr),
+                            'ID: {}({}/{})'.format(selected_client_ids[i], i + 1, num_active_clients),
+                            'Global Epoch Finished Time: {}'.format(global_epoch_finished_time),
+                            'Experiment Finished Time: {}'.format(exp_finished_time)]}
+            logger.append(info, 'train', mean=False)
+            print(logger.write('train', metric.metric_name['train']))
 
-    def distribute(
-        self, client: dict[int, ClientType]
-    ) -> None:
+    def select_clients(
+        self, clients: dict[int, ClientType]
+    ) -> tuple[list[int], int]:
 
-        model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-        model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
-        model.load_state_dict(self.model_state_dict)
-        model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        for m in range(len(client)):
-            if client[m].active:
-                client[m].model_state_dict = copy.deepcopy(model_state_dict)
-        return
-
-    def update(
-        self, 
-        client: dict[int, ClientType],
-        epoch: int
-    ) -> None:
-
-        with torch.no_grad():
-            # 修改
-            valid_client = [client[i] for i in range(len(client)) if client[i].active]
-            valid_client_idx = [i for i in range(len(client)) if client[i].active]
-            
-            if len(valid_client) > 0:
-                model = eval('models.{}()'.format(cfg['model_name']))
-                model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
-                model.load_state_dict(self.model_state_dict)
-                global_optimizer = make_optimizer(model, 'global')
-                global_optimizer.load_state_dict(self.global_optimizer_state_dict)
-                global_optimizer.zero_grad()
-                weight = torch.ones(len(valid_client))
-                weight = weight / weight.sum()
-                for k, v in model.named_parameters():
-                    parameter_type = k.split('.')[-1]
-                    if 'weight' in parameter_type or 'bias' in parameter_type:
-                        tmp_v = v.data.new_zeros(v.size())
-                        for m in range(len(valid_client)):
-                            tmp_v += weight[m] * valid_client[m].model_state_dict[k]
-                        v.grad = (v.data - tmp_v).detach()
-                global_optimizer.step()
-                self.global_optimizer_state_dict = global_optimizer.state_dict()
-                self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-                self.cal_diff(model, valid_client_idx, valid_client, epoch)
-                self.store_client(valid_client_idx, valid_client)
-            for i in range(len(client)):
-                client[i].active = False
-        return
+        num_active_clients = int(np.ceil(cfg['active_rate'] * cfg['num_clients']))
+        selected_client_ids = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
+        for i in range(num_active_clients):
+            clients[selected_client_ids[i]].active = True
+        
+        return selected_client_ids, num_active_clients
     
 

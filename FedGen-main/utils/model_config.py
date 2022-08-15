@@ -1,15 +1,15 @@
 CONFIGS_ = {
     # input_channel, n_class, hidden_dim, latent_dim
-    'cifar': ([16, 'M', 32, 'M', 'F'], 3, 10, 2048, 64),
-    'cifar100-c25': ([32, 'M', 64, 'M', 128, 'F'], 3, 25, 128, 128),
-    'cifar100-c30': ([32, 'M', 64, 'M', 128, 'F'], 3, 30, 2048, 128),
-    'cifar100-c50': ([32, 'M', 64, 'M', 128, 'F'], 3, 50, 2048, 128),
+    'cifar': ([16, 'MaxPooling', 32, 'MaxPooling', 'Flatten'], 3, 10, 2048, 64),
+    'cifar100-c25': ([32, 'MaxPooling', 64, 'MaxPooling', 128, 'Flatten'], 3, 25, 128, 128),
+    'cifar100-c30': ([32, 'MaxPooling', 64, 'MaxPooling', 128, 'Flatten'], 3, 30, 2048, 128),
+    'cifar100-c50': ([32, 'MaxPooling', 64, 'MaxPooling', 128, 'Flatten'], 3, 50, 2048, 128),
 
-    'emnist': ([6, 16, 'F'], 1, 26, 784, 32),
-    'mnist': ([6, 16, 'F'], 1, 10, 784, 32),
-    'mnist_cnn1': ([6, 'M', 16, 'M', 'F'], 1, 10, 64, 32),
-    'mnist_cnn2': ([16, 'M', 32, 'M', 'F'], 1, 10, 128, 32),
-    'celeb': ([16, 'M', 32, 'M', 64, 'M', 'F'], 3, 2, 64, 32)
+    'emnist': ([6, 16, 'Flatten'], 1, 26, 784, 32),
+    'mnist': ([6, 16, 'Flatten'], 1, 10, 784, 32),
+    'mnist_cnn1': ([6, 'MaxPooling', 16, 'MaxPooling', 'Flatten'], 1, 10, 64, 32),
+    'mnist_cnn2': ([16, 'MaxPooling', 32, 'MaxPooling', 'Flatten'], 1, 10, 128, 32),
+    'celeb': ([16, 'MaxPooling', 32, 'MaxPooling', 64, 'MaxPooling', 'Flatten'], 3, 2, 64, 32)
 }
 
 # temporary roundabout to evaluate sensitivity of the generator

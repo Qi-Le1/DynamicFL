@@ -13,41 +13,48 @@ from config import cfg
 from collections import defaultdict
 
 from _typing import (
+    DatasetType,
+    OptimizerType,
+    DataLoaderType,
     ModelType,
-    ClientType
+    MetricType,
+    LoggerType,
+    ClientType,
+    ServerType
 )
 
-from models import make_batchnorm
-from optimizer.api import make_optimizer
+from optimizer.api import create_optimizer
 from .serverBase import ServerBase
+
+from ...data import separate_dataset
 
 
 class ServerFedSgd(ServerBase):
 
     def __init__(
-        self, model: ModelType
+        self, 
+        model: ModelType,
+        clients: dict[int, ClientType]
     ) -> None:
 
-        self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        optimizer = make_optimizer(model, 'local')
-        self.optimizer_state_dict = optimizer.state_dict()
-        global_optimizer = make_optimizer(model, 'global')
+        self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        global_optimizer = create_optimizer(model, 'global')
         self.global_optimizer_state_dict = global_optimizer.state_dict()
+        self.clients = clients
 
-    def distribute(
-        self, client: dict[int, ClientType]
+    def distribute_global_model_to_clients(
+        self
     ) -> None:
 
-        model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-        model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
-        model.load_state_dict(self.model_state_dict)
-        model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        for m in range(len(client)):
-            if client[m].active:
-                client[m].model_state_dict = copy.deepcopy(model_state_dict)
+        model = super().create_model(track_running_stats=False)
+        model.load_state_dict(self.global_model_state_dict)
+        global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        for m in range(len(self.clients)):
+            if self.clients[m].active:
+                self.clients[m].model_state_dict = copy.deepcopy(global_model_state_dict)
         return
 
-    def update(
+    def update_global_model(
         self, 
         client: dict[int, ClientType],
         epoch: int
@@ -59,10 +66,9 @@ class ServerFedSgd(ServerBase):
             valid_client_idx = [i for i in range(len(client)) if client[i].active]
             
             if len(valid_client) > 0:
-                model = eval('models.{}()'.format(cfg['model_name']))
-                model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
-                model.load_state_dict(self.model_state_dict)
-                global_optimizer = make_optimizer(model, 'global')
+                model = super().create_model(track_running_stats=False)
+                model.load_state_dict(self.global_model_state_dict)
+                global_optimizer = create_optimizer(model, 'global')
                 global_optimizer.load_state_dict(self.global_optimizer_state_dict)
                 global_optimizer.zero_grad()
                 weight = torch.ones(len(valid_client))
@@ -76,11 +82,51 @@ class ServerFedSgd(ServerBase):
                         v.grad = (v.data - tmp_v).detach()
                 global_optimizer.step()
                 self.global_optimizer_state_dict = global_optimizer.state_dict()
-                self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-                self.cal_diff(model, valid_client_idx, valid_client, epoch)
-                self.store_client(valid_client_idx, valid_client)
+                self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
             for i in range(len(client)):
                 client[i].active = False
+        return
+    
+    def train_clients(
+        self,
+        dataset: DatasetType,  
+        optimizer: OptimizerType, 
+        metric: MetricType, 
+        logger: LoggerType, 
+        global_epoch: int
+    ):
+        
+        logger.safe(True)
+        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)        
+        self.distribute_global_model_to_clients()
+        start_time = time.time()
+        lr = optimizer.param_groups[0]['lr']
+
+        for i in range(num_active_clients):
+            m = selected_client_ids[i]
+            dataset_m = separate_dataset(dataset, self.clients[m].data_split['train'])
+            if dataset_m is None:
+                self.clients[m].active = False
+            elif dataset_m is not None:
+                self.clients[m].active = True
+                self.clients[m].train(
+                    dataset=dataset_m, 
+                    lr=lr, 
+                    metric=metric, 
+                    logger=logger,
+                )
+
+            super().add_log(
+                i=i,
+                num_active_clients=num_active_clients,
+                start_time=start_time,
+                global_epoch=global_epoch,
+                lr=lr,
+                selected_client_ids=selected_client_ids,
+                metric=metric,
+                logger=logger,
+            )
+        logger.safe(False)        
         return
     
 

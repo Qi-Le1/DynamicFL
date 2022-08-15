@@ -64,7 +64,9 @@ class User:
     def init_loss_fn(self):
         # negative log likelihood loss
         self.loss=nn.NLLLoss()
+        # gen用了
         self.dist_loss = nn.MSELoss()
+        # distill和gen用了
         self.ensemble_loss=nn.KLDivLoss(reduction="batchmean")
         self.ce_loss = nn.CrossEntropyLoss()
 

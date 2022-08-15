@@ -9,13 +9,16 @@ from config import cfg
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
-from utils import collate, to_device
+from utils.api import (
+    collate, 
+    to_device
+)
 
 from _typing import (
     DatasetType
 )
 
-from models import make_batchnorm
+from models.api import make_batchnorm
 
 data_stats = {
     'MNIST': ((0.1307,), (0.3081,)), 

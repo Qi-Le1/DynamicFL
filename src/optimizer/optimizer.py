@@ -10,7 +10,7 @@ from config import cfg
 import torch.optim as optim
 
 
-def make_optimizer(
+def create_optimizer(
     model: ModelType, 
     tag: Tag
 ) -> OptimizerType:

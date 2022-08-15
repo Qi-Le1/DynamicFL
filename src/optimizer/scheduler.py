@@ -10,7 +10,7 @@ from config import cfg
 import torch.optim as optim
 
 
-def make_scheduler(
+def create_scheduler(
     optimizer: OptimizerType, 
     tag: Tag
 ) -> SchedulerType:

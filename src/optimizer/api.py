@@ -1,7 +1,7 @@
-from .optimizer import make_optimizer
-from .scheduler import make_scheduler
+from .optimizer import create_optimizer
+from .scheduler import create_scheduler
 
 __all__ = [
-    'make_optimizer',
-    'make_scheduler'
+    'create_optimizer',
+    'create_scheduler'
 ]

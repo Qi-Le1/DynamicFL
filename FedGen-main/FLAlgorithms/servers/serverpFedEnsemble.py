@@ -14,7 +14,9 @@ class FedEnsemble(Server):
         clients = data[0]
         total_users = len(clients)
         self.total_test_samples = 0
+        # TODO: 这是什么？
         self.slow_start = 20
+        # 从args.algorithm判断用不用adam
         self.use_adam = 'adam' in self.algorithm.lower()
         self.init_ensemble_configs()
         self.init_loss_fn()

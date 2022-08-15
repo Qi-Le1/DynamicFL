@@ -207,9 +207,19 @@ class Server:
             target_logit_output=0
             for user in users:
                 # get user logit
+                # 246
+                '''
+                model.eval() is a kind of switch for some specific layers/parts of the model 
+                that behave differently during training and inference (evaluating) time. 
+                For example, Dropouts Layers, BatchNorm Layers etc. 
+                You need to turn off them during model evaluation, and .eval() will do it for you. 
+                In addition, the common practice for evaluating/validation is using torch.no_grad() 
+                in pair with model.eval() to turn off gradients computation:
+                '''
                 user.model.eval()
                 user_result=user.model(x, logit=True)
                 target_logit_output+=user_result['logit']
+            # dim=1, 按行算
             target_logp=F.log_softmax(target_logit_output, dim=1)
             test_acc+= torch.sum( torch.argmax(target_logp, dim=1) == y ) #(torch.sum().item()
             loss+=self.loss(target_logp, y)

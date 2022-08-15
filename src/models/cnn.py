@@ -1,12 +1,15 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.model_config import CONFIGS_
+from ..utils.api import CONFIGS_
 
 import collections
 
-class Net(nn.Module):
+#################################
+##### Neural Network model #####
+#################################
+class CNN(nn.Module):
     def __init__(self, dataset='mnist', model='cnn'):
-        super(Net, self).__init__()
+        super(NeuralNetwork, self).__init__()
         # define network layers
         print("Creating model for {}".format(dataset))
         self.dataset = dataset
@@ -29,12 +32,12 @@ class Net(nn.Module):
         layer_names = []
         kernel_size, stride, padding = 3, 2, 1
         for i, x in enumerate(configs):
-            if x == 'F':
+            if x == 'Flatten':
                 layer_name='flatten{}'.format(i)
                 layer=nn.Flatten(1)
                 layers+=[layer]
                 layer_names+=[layer_name]
-            elif x == 'M':
+            elif x == 'MaxPooling':
                 pool_layer = nn.MaxPool2d(kernel_size=2, stride=2)
                 layer_name = 'pool{}'.format(i)
                 layers += [pool_layer]

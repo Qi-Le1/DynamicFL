@@ -27,7 +27,7 @@ from _typing import (
 
 from models import make_batchnorm
 
-from optimizer.api import make_optimizer
+from optimizer.api import create_optimizer
 
 from data import make_data_loader
 
@@ -49,13 +49,13 @@ class ClientFedGen(ClientBase):
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         self.update_threshold=update_threshold
         self.total_params_num(model)
-        optimizer = make_optimizer(model, 'local')
+        optimizer = create_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
         self.active = False
         self.buffer = None
 
     @classmethod
-    def make_clients(
+    def create_clients(
         cls,
         model: ModelType, 
         data_split: dict[str, dict[int, list[int]]],
@@ -88,7 +88,7 @@ class ClientFedGen(ClientBase):
         model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
-        optimizer = make_optimizer(model, 'local')
+        optimizer = create_optimizer(model, 'local')
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 

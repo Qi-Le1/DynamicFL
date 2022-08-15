@@ -6,6 +6,10 @@ from .utils import (
     resume,
     collate
 )
+from .config import (
+    CONFIGS_,
+    GENERATORCONFIGS
+)
 
 
 __all__ = [
@@ -14,5 +18,7 @@ __all__ = [
     'to_device',
     'process_dataset',
     'resume',
-    'collate'
+    'collate',
+    'CONFIGS_',
+    'GENERATORCONFIGS'
 ]

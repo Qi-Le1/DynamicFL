@@ -146,76 +146,85 @@ P: Communication cost / round:
 
 2. 比较方法:
 
-   1. FedAvg
+   1. 在fedgen代码中选用的模型:
+
+      1. A CNN with two 5x5(kernel size, 长度和宽度) convolution layers（conv2d+batchnorm+relu） (the ﬁrst with 32 channels, the second with 64, each followed with 2x2(kernel size) max pooling), a fully connected layer with 512 units and ReLu activation, and a ﬁnal softmax output layer (1,663,370 total parameters). 
+2. FedAvg
    
-   2. FedProx
-      1. 对本地模型权重参数和全局模型权重参数的差异的限制
+   1. 在fedgen中他是怎么算loss的？
+         1. 使用nllloss
+   
+      2. nllloss是什么？
+            1. https://blog.csdn.net/qq_22210253/article/details/85229988
+   
+         2. Softmax + 取log + nllloss（将上面的输出与Label对应的那个值的绝对值拿出来, 再求均值） == cross entropy loss
+   
+      3. 他将这ce_loss拆开是要干什么？
+            1. 对fedsgd, fedavg, dynamicfl没影响
+            2. fenensemble和fedgen需要
+   
+      4. model.eval() == model.train(False), dropout层会让所有的激活单元都通过，而batchnorm层会停止计算和更新mean和var，直接使用在训练阶段已经学出的mean和var值。
+   3. FedProx
+   1. 对本地模型权重参数和全局模型权重参数的差异的限制
          1. add proximal term to local optimal function: u/2(w-w_t)^2 (w_t is the global model at round t， w is local model parameter, u is penalty factor)
          2. 问题:
             1. u选择
             2. nn.NLLLoss()
          3. 和fedavg的区别：
             1. change **local epoch E** to r_k^t - inexact minimizer (![image-20220807175349935](/Users/qile/Library/Application Support/typora-user-images/image-20220807175349935.png))
+   4. FedEnsemble
    
-   3. FedEnsemble
-   
-      1. FedAvg + Ensemble
-   
-   4. FedGen
-   
+   1. FedAvg + Ensemble
+   5. FedGen
+
       1. 区别:
-   
+
          1. client:
-            1. 使用generator增强数据
+         1. 使用generator增强数据
             2. 改变loss func
-   
+
          2. server:
             1. 构建generator
             2. 改变loss func
-   
-      2. softmax
+   2. softmax
    
          1. ![image-20220808174249934](/Users/qile/Library/Application Support/typora-user-images/image-20220808174249934.png)
-   
       3. sigmoid
-   
+
          1. ![img](https://pic4.zhimg.com/80/v2-7c4e9e545f0cc76bb5202fec4202f873_720w.jpg)
-   
-      4. softmax和sigmoid的区别？
-   
+   4. softmax和sigmoid的区别？
       5. Cross Entropy Loss Function （假设是多项式分布）
-   
+
          1. ![image-20220808172910954](/Users/qile/Library/Application Support/typora-user-images/image-20220808172910954.png)
+   6. 为什么分类不使用mse loss （假设是高斯分布）:
    
-      6. 为什么分类不使用mse loss （假设是高斯分布）:
-   
-         1. 主要原因是在分类问题中，使用sigmoid/softmx得到概率，配合MSE损失函数时，采用梯度下降法进行学习时，会出现模型一开始训练时，学习速率非常慢的情况
+      1. 主要原因是在分类问题中，使用sigmoid/softmx得到概率，配合MSE损失函数时，采用梯度下降法进行学习时，会出现模型一开始训练时，学习速率非常慢的情况
          2. mse不好收敛，有Local optimal, 不是strong convex
+   7. 前置知识: knowledge distillation
    
-      7. 前置知识: knowledge distillation
+      1. Knowledge distillation属于模型压缩的一种方法
    
-         1. Knowledge distillation属于模型压缩的一种方法
+      2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
    
-         2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
-   
-            1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
+         1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
    
             2. KD的训练过程和传统的训练过程的对比
-   
+
                1. 传统training过程(hard targets): 对ground truth求极大似然
-               2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
+            2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
    
-            3. KD的训练过程为什么更有效?
+         3. KD的训练过程为什么更有效?
    
-               1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
+            1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
                2. ![img](https://pic4.zhimg.com/80/v2-a9e90626c5ac6f64a7e04c89f6ce3013_720w.jpg)
-               3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
+            3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
                4. ![image-20220808190120115](/Users/qile/Library/Application Support/typora-user-images/image-20220808190120115.png)
+
+   6. DynamicFL:
+      1. ![image-20220814232035092](/Users/qile/Library/Application Support/typora-user-images/image-20220814232035092.png)
+
    
-               
-   
-   
-   
+
 
 **ToDos:**
 
@@ -244,8 +253,13 @@ P: Communication cost / round:
       5. dynamicfl
       6. fedsgd
    2. **在server folder下建立不同的文件处理不同的算法**
-   3. FedEnsemble到底是哪篇？
+   3. **FedEnsemble到底是哪篇？**
+      1. 只是fedavg + ensemble
    4. 构建不同server算法的逻辑
+      1. **使用fedgen的模型**
+      2. 整理fedavg逻辑
+         1. loss的拆分: ce_loss => softmax + log + nllloss
+         2. 类的变化
 7. 生成Non-iid数据
 8. 跑通所有算法
 9. 处理Federated Extended MNIST， Cifar-10， Cifar-100数据集
