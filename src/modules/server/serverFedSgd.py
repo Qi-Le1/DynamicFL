@@ -22,8 +22,12 @@ from _typing import (
     ClientType,
     ServerType
 )
-
+from models.api import (
+    create_model,
+    make_batchnorm
+)
 from optimizer.api import create_optimizer
+from ..client.api import ClientFedSgd
 from .serverBase import ServerBase
 
 from ...data import separate_dataset
@@ -87,7 +91,33 @@ class ServerFedSgd(ServerBase):
                 client[i].active = False
         return
     
-    def train_clients(
+    # combinedDataset = combine_dataset(
+#             num_active_clients=num_active_clients,
+#             clients=clients,
+#             client_ids=client_ids,
+#         )
+        
+#         client = Client(
+#             client_id=0, 
+#             model=create_model(), 
+#             data_split={
+#                 'train': None, 
+#                 'test': None
+#             },
+#             update_threshold=cfg['max_local_gradient_update'][m]
+#         )
+
+#         client[0].train(
+#             dataset=combinedDataset, 
+#             lr=lr, 
+#             metric=metric, 
+#             logger=logger,
+#             grad_interval=grad_interval
+#         )
+
+  
+
+    def train(
         self,
         dataset: DatasetType,  
         optimizer: OptimizerType, 
@@ -97,36 +127,52 @@ class ServerFedSgd(ServerBase):
     ):
         
         logger.safe(True)
-        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)        
+        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)      
+        dataset = super().combine_train_dataset(
+            num_active_clients=num_active_clients,
+            clients=self.clients,
+            selected_client_ids=selected_client_ids,
+            dataset=dataset
+        )
         self.distribute_global_model_to_clients()
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 
-        for i in range(num_active_clients):
-            m = selected_client_ids[i]
-            dataset_m = separate_dataset(dataset, self.clients[m].data_split['train'])
-            if dataset_m is None:
-                self.clients[m].active = False
-            elif dataset_m is not None:
-                self.clients[m].active = True
-                self.clients[m].train(
-                    dataset=dataset_m, 
-                    lr=lr, 
-                    metric=metric, 
-                    logger=logger,
-                )
+        # use 1 model to simulate FedSgd
+        # TODO: dont have local optimizer
+        client = ClientFedSgd(
+            client_id=0, 
+            model=create_model(), 
+            data_split={
+                'train': None, 
+                'test': None
+            },
+        )
 
-            super().add_log(
-                i=i,
-                num_active_clients=num_active_clients,
-                start_time=start_time,
-                global_epoch=global_epoch,
-                lr=lr,
-                selected_client_ids=selected_client_ids,
-                metric=metric,
-                logger=logger,
-            )
-        logger.safe(False)        
+        client.train(
+            dataset=dataset, 
+            lr=lr, 
+            metric=metric, 
+            logger=logger,
+            grad_updates_num=cfg['max_local_gradient_update']
+        )
+
+        super().add_log(
+            i=0,
+            num_active_clients=num_active_clients,
+            start_time=start_time,
+            global_epoch=global_epoch,
+            lr=lr,
+            selected_client_ids=selected_client_ids,
+            metric=metric,
+            logger=logger,
+        )
+
+        logger.safe(False)  
+        self.update_global_model(
+            clients=self.clients, 
+            global_epoch=global_epoch
+        ) 
         return
     
 

@@ -101,6 +101,7 @@ class ClientFedAvg(ClientBase):
         lr: int, 
         metric: MetricType, 
         logger: LoggerType,
+        grad_updates_num: int,
     ) -> None:
         '''
         data_loader = make_data_loader({'train': dataset}, 'client')['train']
@@ -135,8 +136,20 @@ class ClientFedAvg(ClientBase):
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
-        for epoch in range(1, cfg['local']['num_epochs'] + 1):
+        cur_grad_updates_num = 0
+        while cur_grad_updates_num < grad_updates_num:
+            # Regenerate data loader if number of data_loader batches < grad_interval
+            # number of data_loader batches = num of data points / batch_size
+            data_loader = make_data_loader(
+                dataset={'train': dataset}, 
+                tag='client'
+            )['train'] 
+
             for i, input in enumerate(data_loader):
+                cur_grad_updates_num += 1                      
+                if cur_grad_updates_num == grad_updates_num + 1:
+                    break
+
                 input = collate(input)
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
@@ -150,8 +163,16 @@ class ClientFedAvg(ClientBase):
                 )
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
                 optimizer.step()
-                evaluation = metric.evaluate(metric.metric_name['train'], input, output)
-                logger.append(evaluation, 'train', n=input_size)
+                evaluation = metric.evaluate(
+                    metric.metric_name['train'], 
+                    input, 
+                    output
+                )
+                logger.append(
+                    evaluation, 
+                    'train', 
+                    n=input_size
+                )
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return

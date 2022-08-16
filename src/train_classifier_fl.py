@@ -226,25 +226,28 @@ def runExperiment():
         logger = result['logger']
 
     for global_epoch in range(last_global_epoch, cfg['global']['num_epochs'] + 1):
-        server.train_clients(
+        server.train(
             dataset=dataset, 
             optimizer=optimizer, 
             metric=metric, 
             logger=logger, 
             global_epoch=global_epoch
         )
-        server.update_global_model(
-            clients=clients, 
-            global_epoch=global_epoch
-        )
         scheduler.step()
-        model.load_state_dict(server.model_state_dict)
-        test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
-        test(
-            data_loader=data_loader['test'], 
-            model=test_model, 
-            metric=metric, 
-            logge=logger, 
+        # model.load_state_dict(server.model_state_dict)
+        # test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
+        # test(
+        #     data_loader=data_loader['test'], 
+        #     model=test_model, 
+        #     metric=metric, 
+        #     logge=logger, 
+        #     global_epoch=global_epoch
+        # )
+        server.evaluate_trained_model(
+            dataset=dataset,
+            batchnorm_dataset=batchnorm_dataset,
+            logger=logger,
+            metric=metric,
             global_epoch=global_epoch
         )
 
@@ -268,23 +271,23 @@ def runExperiment():
     return
 
 
-def train_clients(
-    dataset: DatasetType, 
-    server: ServerType, 
-    optimizer: OptimizerType, 
-    metric: MetricType, 
-    logger: LoggerType, 
-    global_epoch: int
-) -> None:
+# def train_clients(
+#     dataset: DatasetType, 
+#     server: ServerType, 
+#     optimizer: OptimizerType, 
+#     metric: MetricType, 
+#     logger: LoggerType, 
+#     global_epoch: int
+# ) -> None:
 
-    server.train_clients(
-        dataset=dataset, 
-        optimizer=optimizer, 
-        metric=metric, 
-        logger=logger, 
-        global_epoch=global_epoch
-    )
-    return
+#     server.train_clients(
+#         dataset=dataset, 
+#         optimizer=optimizer, 
+#         metric=metric, 
+#         logger=logger, 
+#         global_epoch=global_epoch
+#     )
+#     return
 
 
 def test(
@@ -360,24 +363,7 @@ def update_update_threshold(
     else:
         raise ValueError('select_client_mode wrong')
 
-def combine_dataset(
-    num_active_clients: int,
-    clients: dict[int, ClientType],
-    client_ids: list[int],
-    dataset: DatasetType
-) -> DatasetType:  
-    '''
-    combine the datapoint index for selected clients
-    and return the dataset
-    '''
-    combined_datapoint_idx = []
-    for i in range(num_active_clients):
-        m = client_ids[i]
-        combined_datapoint_idx = combined_datapoint_idx + clients[m].data_split['train']
 
-    # dataset: DatasetType
-    dataset = separate_dataset(dataset, combined_datapoint_idx)
-    return dataset
 
 
 # def train_clients(

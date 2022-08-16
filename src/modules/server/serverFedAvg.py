@@ -23,10 +23,22 @@ from _typing import (
     ServerType
 )
 
+from utils.api import (
+    to_device,  
+    collate
+)
+
 from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 
-from ...data import separate_dataset
+from ...data import (
+    fetch_dataset, 
+    split_dataset, 
+    make_data_loader, 
+    separate_dataset, 
+    make_batchnorm_dataset, 
+    make_batchnorm_stats
+)
 
 
 class ServerFedAvg(ServerBase):
@@ -87,7 +99,7 @@ class ServerFedAvg(ServerBase):
                 client[i].active = False
         return
     
-    def train_clients(
+    def train(
         self,
         dataset: DatasetType,  
         optimizer: OptimizerType, 
@@ -95,7 +107,6 @@ class ServerFedAvg(ServerBase):
         logger: LoggerType, 
         global_epoch: int
     ):
-        
         logger.safe(True)
         selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)        
         self.distribute_global_model_to_clients()
@@ -126,7 +137,61 @@ class ServerFedAvg(ServerBase):
                 metric=metric,
                 logger=logger,
             )
-        logger.safe(False)        
+        logger.safe(False)     
+        self.update_global_model(
+            clients=self.clients, 
+            global_epoch=global_epoch
+        )    
         return
     
+    def test(
+        self,
+        dataset,
+        batchnorm_dataset,
+        logger,
+        metric,
+        global_epoch
+    ):  
+        data_loader = make_data_loader(dataset, 'global')
 
+        model = super().create_model()
+        model.load_state_dict(self.model_state_dict)
+        batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
+        test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
+
+        logger.safe(True)
+        with torch.no_grad():
+            model.train(False)
+            for i, input in enumerate(data_loader):
+
+                input = collate(input)
+                input_size = input['data'].size(0)
+                input = to_device(input, cfg['device'])
+                output = model(input)['output']
+                loss = self.nll_loss(output, input['target'])
+                output = self.reform_model_output(
+                    output=output,
+                    loss=loss
+                )
+
+                evaluation = metric.evaluate(
+                    metric.metric_name['test'], 
+                    input, 
+                    output
+                )
+                logger.append(
+                    evaluation, 
+                    'test', 
+                    input_size
+                )
+                
+            info = {
+                'info': [
+                    'Model: {}'.format(cfg['model_tag']), 
+                    'Test Epoch: {}({:.0f}%)'.format(global_epoch, 100.)
+                ]
+            }
+            logger.append(info, 'test', mean=False)
+            print(logger.write('test', metric.metric_name['test']))
+        logger.safe(False)
+        return

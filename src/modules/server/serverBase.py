@@ -14,7 +14,8 @@ from collections import defaultdict
 
 from _typing import (
     ModelType,
-    ClientType
+    ClientType,
+    DatasetType
 )
 
 from models.api import (
@@ -22,7 +23,7 @@ from models.api import (
     make_batchnorm
 )
 from optimizer.api import create_optimizer
-
+from ...data import separate_dataset
 
 class ServerBase:
 
@@ -71,4 +72,42 @@ class ServerBase:
         
         return selected_client_ids, num_active_clients
     
+    def combine_train_dataset(
+        self,
+        num_active_clients: int,
+        clients: dict[int, ClientType],
+        selected_client_ids: list[int],
+        dataset: DatasetType
+    ) -> DatasetType:  
+        '''
+        combine the datapoint index for selected clients
+        and return the dataset
+        '''
+        combined_datapoint_idx = []
+        for i in range(num_active_clients):
+            m = selected_client_ids[i]
+            combined_datapoint_idx += clients[m].data_split['train']
 
+        # dataset: DatasetType
+        dataset = separate_dataset(dataset, combined_datapoint_idx)
+        return dataset
+    
+    def combine_test_dataset(
+        self,
+        num_active_clients: int,
+        clients: dict[int, ClientType],
+        selected_client_ids: list[int],
+        dataset: DatasetType
+    ) -> DatasetType:  
+        '''
+        combine the datapoint index for selected clients
+        and return the dataset
+        '''
+        combined_datapoint_idx = []
+        for i in range(num_active_clients):
+            m = selected_client_ids[i]
+            combined_datapoint_idx += clients[m].data_split['test']
+
+        # dataset: DatasetType
+        dataset = separate_dataset(dataset, combined_datapoint_idx)
+        return dataset

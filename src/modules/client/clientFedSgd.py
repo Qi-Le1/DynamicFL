@@ -49,20 +49,18 @@ class ClientFedSgd(ClientBase):
         client_id: int, 
         model: ModelType, 
         data_split: list[int],
-        update_threshold: int
     ) -> None:
 
         super().__init__()
-
         self.client_id = client_id
         self.data_split = data_split
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        self.update_threshold=update_threshold
         optimizer = create_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
         self.active = False
         self.buffer = None
 
+    
     @classmethod
     def create_clients(
         cls,
@@ -71,6 +69,11 @@ class ClientFedSgd(ClientBase):
     ) -> dict[int, object]:
         '''
         Create clients which organized in dict type
+        For fedsgd, we only need to create one model to
+        speed up the computation.
+        The mathematic form of running sgd on one model is
+        the same as the create mutiple clients and average
+        the gradients. 
         
         Parameters
         ----------
@@ -81,10 +84,25 @@ class ClientFedSgd(ClientBase):
         -------
         dict[int, object]
         '''
+        # clients = [None]
+        # client = ClientFedSgd(
+        #     client_id=0, 
+        #     model=model, 
+        #     # for fedsgd, the train dataset and test dataset
+        #     # will be generated in each epoch, dont need
+        #     # set them in initialization    
+        #     data_split={
+        #         'train': data_split['train'][m], 
+        #         'test': data_split['test'][m]
+        #     },
+        #     update_threshold=cfg['max_local_gradient_update']
+        # )
+        # clients[0] = client
+
         client_id = torch.arange(cfg['num_clients'])
         clients = [None for _ in range(cfg['num_clients'])]
         for m in range(len(clients)):
-            clients[m] = ClientFedAvg(
+            clients[m] = ClientFedSgd(
                 client_id=client_id[m], 
                 model=model, 
                 data_split={
@@ -101,6 +119,7 @@ class ClientFedSgd(ClientBase):
         lr: int, 
         metric: MetricType, 
         logger: LoggerType,
+        grad_updates_num: int,
     ) -> None:
 
         data_loader = make_data_loader({'train': dataset}, 'client')['train']
@@ -111,8 +130,20 @@ class ClientFedSgd(ClientBase):
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
-        for epoch in range(1, cfg['local']['num_epochs'] + 1):
+        cur_grad_updates_num = 0
+        while cur_grad_updates_num < grad_updates_num:
+            # Regenerate data loader if number of data_loader batches < grad_interval
+            # number of data_loader batches = num of data points / batch_size
+            data_loader = make_data_loader(
+                dataset={'train': dataset}, 
+                tag='client'
+            )['train'] 
+
             for i, input in enumerate(data_loader):
+                cur_grad_updates_num += 1                      
+                if cur_grad_updates_num == grad_updates_num + 1:
+                    break
+
                 input = collate(input)
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
@@ -126,8 +157,16 @@ class ClientFedSgd(ClientBase):
                 )
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
                 optimizer.step()
-                evaluation = metric.evaluate(metric.metric_name['train'], input, output)
-                logger.append(evaluation, 'train', n=input_size)
+                evaluation = metric.evaluate(
+                    metric.metric_name['train'], 
+                    input, 
+                    output
+                )
+                logger.append(
+                    evaluation, 
+                    'train', 
+                    n=input_size
+                )
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return
