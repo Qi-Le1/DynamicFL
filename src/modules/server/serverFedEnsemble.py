@@ -23,13 +23,25 @@ from _typing import (
     ServerType
 )
 
+from utils.api import (
+    to_device,  
+    collate
+)
+
 from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 
-from ...data import separate_dataset
+from ...data import (
+    fetch_dataset, 
+    split_dataset, 
+    make_data_loader, 
+    separate_dataset, 
+    make_batchnorm_dataset, 
+    make_batchnorm_stats
+)
 
 
-class ServerFedAvg(ServerBase):
+class ServerFedEnsemble(ServerBase):
 
     def __init__(
         self, 
@@ -37,21 +49,22 @@ class ServerFedAvg(ServerBase):
         clients: dict[int, ClientType]
     ) -> None:
 
-        self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        global_optimizer = create_optimizer(model, 'global')
-        self.global_optimizer_state_dict = global_optimizer.state_dict()
+        self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        server_optimizer = create_optimizer(model, 'global')
+        self.server_optimizer_state_dict = server_optimizer.state_dict()
         self.clients = clients
+        self.selected_client_ids = None
 
     def distribute_global_model_to_clients(
         self
     ) -> None:
 
         model = super().create_model(track_running_stats=False)
-        model.load_state_dict(self.global_model_state_dict)
-        global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        model.load_state_dict(self.server_model_state_dict)
+        server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         for m in range(len(self.clients)):
             if self.clients[m].active:
-                self.clients[m].model_state_dict = copy.deepcopy(global_model_state_dict)
+                self.clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
 
     def update_global_model(
@@ -67,10 +80,10 @@ class ServerFedAvg(ServerBase):
             
             if len(valid_client) > 0:
                 model = super().create_model(track_running_stats=False)
-                model.load_state_dict(self.global_model_state_dict)
-                global_optimizer = create_optimizer(model, 'global')
-                global_optimizer.load_state_dict(self.global_optimizer_state_dict)
-                global_optimizer.zero_grad()
+                model.load_state_dict(self.server_model_state_dict)
+                server_optimizer = create_optimizer(model, 'global')
+                server_optimizer.load_state_dict(self.server_optimizer_state_dict)
+                server_optimizer.zero_grad()
                 weight = torch.ones(len(valid_client))
                 weight = weight / weight.sum()
                 for k, v in model.named_parameters():
@@ -80,38 +93,12 @@ class ServerFedAvg(ServerBase):
                         for m in range(len(valid_client)):
                             tmp_v += weight[m] * valid_client[m].model_state_dict[k]
                         v.grad = (v.data - tmp_v).detach()
-                global_optimizer.step()
-                self.global_optimizer_state_dict = global_optimizer.state_dict()
-                self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+                server_optimizer.step()
+                self.server_optimizer_state_dict = server_optimizer.state_dict()
+                self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
             for i in range(len(client)):
                 client[i].active = False
         return
-    
-    def evaluate_ensemble(
-        self, 
-        clients,
-        selected_client_ids,
-        combined_test_dataset
-    ):
-
-        test_acc=0
-        loss=0
-        # TODO: 什么是testloaderfull, test dataset的总和？
-        for x, y in self.testloaderfull:
-            target_logit_output=0
-            for user in users:
-                user.model.eval()
-                user_result = user.model(x, logit=True)
-                target_logit_output += user_result['logit']
-            # dim=1, 按行算
-            target_logp = F.log_softmax(target_logit_output, dim=1)
-            test_acc += torch.sum( torch.argmax(target_logp, dim=1) == y ) #(torch.sum().item()
-            loss+=self.loss(target_logp, y)
-        loss = loss.detach().numpy()
-        test_acc = test_acc.detach().numpy() / y.shape[0]
-        self.metrics['glob_acc'].append(test_acc)
-        self.metrics['glob_loss'].append(loss)
-        print("Average Global Accurancy = {:.4f}, Loss = {:.2f}.".format(test_acc, loss))
 
     def train(
         self,
@@ -123,7 +110,8 @@ class ServerFedAvg(ServerBase):
     ):
         
         logger.safe(True)
-        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)        
+        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients) 
+        self.selected_client_ids = selected_client_ids       
         self.distribute_global_model_to_clients()
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
@@ -153,79 +141,90 @@ class ServerFedAvg(ServerBase):
                 logger=logger,
             )
         logger.safe(False)
-
         self.update_global_model(
             clients=self.clients, 
             global_epoch=global_epoch
         ) 
 
-        # combine dataset for ensemble evaluation
-        combined_test_dataset = super().combine_test_dataset(
-            num_active_clients=num_active_clients,
-            clients=self.clients,
-            selected_client_ids=selected_client_ids,
-            dataset=dataset
-        )
-        self.evaluate_ensemble(
-            clients=self.clients,
-            selected_client_ids=selected_client_ids,
-            combined_test_dataset=combined_test_dataset
-        )
-        evaluation = metric.evaluate(
-            metric.metric_name['train'], 
-            input, 
-            output
-        )
-        logger.append(
-            evaluation, 
-            'train', 
-            n=input_size
-        )
         return
     
+    def evaluate_ensemble(
+        self, 
+    ):
+        # test_acc=0
+        # loss=0
+        # # TODO: 什么是testloaderfull, test dataset的总和？
+        # for x, y in self.testloaderfull:
+        #     target_logit_output=0
+        #     for user in users:
+        #         user.model.eval()
+        #         user_result = user.model(x, logit=True)
+        #         target_logit_output += user_result['logit']
+        #     # dim=1, 按行算
+        #     target_logp = F.log_softmax(target_logit_output, dim=1)
+        #     test_acc += torch.sum( torch.argmax(target_logp, dim=1) == y ) #(torch.sum().item()
+        #     loss+=self.loss(target_logp, y)
+        # loss = loss.detach().numpy()
+        # test_acc = test_acc.detach().numpy() / y.shape[0]
+        # self.metrics['glob_acc'].append(test_acc)
+        # self.metrics['glob_loss'].append(loss)
+        # print("Average Global Accurancy = {:.4f}, Loss = {:.2f}.".format(test_acc, loss))
+        return 
 
-
-
-    def test(
+    def evaluate_trained_model(
         self,
         dataset,
-        batchnorm_dataset,
         logger,
         metric,
-        global_epoch
+        global_epoch,
+        **kwargs
     ):  
         data_loader = make_data_loader(dataset, 'global')
-
-        model = super().create_model()
-        model.load_state_dict(self.model_state_dict)
-        batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
-        test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
+        
+        test_models = []
+        for i in range(len(self.selected_client_ids)):
+            m = self.selected_client_ids[i]
+            if self.clients[m].active == True:
+                test_models.append(super().create_test_model(
+                    model_state_dict=self.clients[m].model_state_dict
+                ))
 
         logger.safe(True)
         with torch.no_grad():
-            model.train(False)
+            test_acc = 0
+            loss = 0
             for i, input in enumerate(data_loader):
-
                 input = collate(input)
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
-                output = model(input)['output']
-                loss = self.nll_loss(output, input['target'])
-                output = self.reform_model_output(
-                    output=output,
-                    loss=loss
-                )
 
-                evaluation = metric.evaluate(
-                    metric.metric_name['test'], 
-                    input, 
-                    output
-                )
-                logger.append(
-                    evaluation, 
-                    'test', 
-                    input_size
-                )
+                target_logit_output = 0
+                for test_model in test_models:
+                    test_model.train(False)
+                    output = test_model(input, logit=True)
+                    target_logit_output += output['logit']
+
+                target_logp = F.log_softmax(target_logit_output, dim=1)
+                test_acc += torch.sum( torch.argmax(target_logp, dim=1) == input['target'] ) #(torch.sum().item()
+                loss += super().nll_loss(target_logp, input['target'])
+
+            loss = loss.detach().numpy()
+            test_acc = test_acc.detach().numpy() / input['target'].shape[0]
+
+            loss = self.nll_loss(output, input['target'])
+            output = self.reform_model_output(
+                output=output,
+                loss=loss
+            )
+
+            evaluation = []
+            evaluation['Loss'] = loss
+            evaluation['Accuracy'] = test_acc
+            logger.append(
+                evaluation, 
+                'test', 
+                input_size
+            )
                 
             info = {
                 'info': [
@@ -233,7 +232,11 @@ class ServerFedAvg(ServerBase):
                     'Test Epoch: {}({:.0f}%)'.format(global_epoch, 100.)
                 ]
             }
-            logger.append(info, 'test', mean=False)
+            logger.append(
+                info, 
+                'test', 
+                mean=False
+            )
             print(logger.write('test', metric.metric_name['test']))
         logger.safe(False)
         return

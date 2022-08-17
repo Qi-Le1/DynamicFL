@@ -70,7 +70,7 @@ class UserpFedGen(User):
                     loss=predictive_loss + gen_ratio * teacher_loss + user_latent_loss
                     TEACHER_LOSS+=teacher_loss
                     LATENT_LOSS+=user_latent_loss
-                else:
+                else: 
                     #### get loss and perform optimization
                     loss=predictive_loss
                 loss.backward()

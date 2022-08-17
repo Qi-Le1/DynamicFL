@@ -202,11 +202,11 @@ def runExperiment():
     torch.cuda.manual_seed(cfg['seed'])
     dataset = fetch_dataset(cfg['data_name'])
     process_dataset(dataset)
-    data_loader = make_data_loader(dataset, 'global')
+    # data_loader = make_data_loader(dataset, 'global')
     model = create_model()
     optimizer = create_optimizer(model, 'local')
     scheduler = create_scheduler(optimizer, 'global')
-    batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
+    # batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
     data_split = split_dataset(dataset, cfg['num_clients'], cfg['data_split_mode'])
     metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
 
@@ -245,7 +245,6 @@ def runExperiment():
         # )
         server.evaluate_trained_model(
             dataset=dataset,
-            batchnorm_dataset=batchnorm_dataset,
             logger=logger,
             metric=metric,
             global_epoch=global_epoch

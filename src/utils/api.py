@@ -6,6 +6,7 @@ from .utils import (
     resume,
     collate
 )
+from .utils import *
 from .config import (
     CONFIGS_,
     GENERATORCONFIGS

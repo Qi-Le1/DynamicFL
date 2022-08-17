@@ -229,11 +229,13 @@ P: Communication cost / round:
 **ToDos:**
 
 1. Define data and problem in LaTex (problem formulation)
+
 2. Define sudo-code in LaTex (done)
    1. **每一个命名都需要在input说明或者加一句说明语**
    2. **Symbol要清晰并且格式统一**
    3. **每个函数input, output要清楚（形参可变）**
    4. **每个变量要保证循环**
+
 3. Proposal
    1. Abstract 
    2. Introduction(motivation)
@@ -242,9 +244,21 @@ P: Communication cost / round:
    3. related work
    4. Proposed method
    5. timeline
+
 4. 衔接local model at t and global model at t+1, 算出gradient后, 用optimizer更新。
+
 5. quantity skew
-6. **如何处理不同的算法？**
+
+6. model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
+
+   1. 训练时用局部statistic, 不track stats => 不算momentum => 算全局statistic
+   2. 测试时用全局statistic
+   3. 一些函数:
+      1. make_batchnorm: 设置submodule的momentum, track_running_stats, running_mean, running_var 和 num_batches_tracked
+      2. make_batchnorm_dataset: 
+      3. make_batchnorm_stats: 用model在batchnorm_dataset(全部数据集)上运行，记录statistic
+
+7. **如何处理不同的算法？**
    1. **在train_classifier_fl中用if区分**
       1. fedavg
       2. fedprox
@@ -252,20 +266,32 @@ P: Communication cost / round:
       4. fedgen
       5. dynamicfl
       6. fedsgd
+      
    2. **在server folder下建立不同的文件处理不同的算法**
+
    3. **FedEnsemble到底是哪篇？**
       1. 只是fedavg + ensemble
+      
    4. 构建不同server算法的逻辑
       1. **使用fedgen的模型**
-      2. 整理fedavg逻辑
-         1. loss的拆分: ce_loss => softmax + log + nllloss
-         2. 类的变化
-7. 生成Non-iid数据
-8. 跑通所有算法
-9. 处理Federated Extended MNIST， Cifar-10， Cifar-100数据集
-10. 如何验证算法work？
+      
+      2. **整理fedavg逻辑**
+      
+         1. **loss的拆分: ce_loss => softmax + log + nllloss**
+         2. **类的变化**
+      
+         
+
+8. 生成Non-iid数据
+
+9. 跑通所有算法
+
+10. 处理Federated Extended MNIST， Cifar-10， Cifar-100数据集
+
+11. 如何验证算法work？
     1. 
-11. Info
+
+12. Info
     1. bagging 求mean
     2. stacking 把多个Output当一个feature, 再过一遍模型
     3. Boosting 

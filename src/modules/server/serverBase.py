@@ -22,18 +22,41 @@ from models.api import (
     create_model,
     make_batchnorm
 )
+
+from ...data import (
+    fetch_dataset, 
+    split_dataset, 
+    make_data_loader, 
+    separate_dataset, 
+    make_batchnorm_dataset, 
+    make_batchnorm_stats
+)
+
 from optimizer.api import create_optimizer
-from ...data import separate_dataset
 
 class ServerBase:
 
     def __init__(
-        self
+        self,
+        dataset
     ) -> None:
-        pass
+
+        self.train_batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
+        return
     
     def create_model(self, track_running_stats=False):
         return create_model(track_running_stats=track_running_stats)
+
+    def create_test_model(
+        self,
+        model_state_dict
+    ) -> object:
+
+        model = create_model()
+        model.load_state_dict(model_state_dict)
+        test_model = make_batchnorm_stats(self.train_batchnorm_dataset, model, 'global')
+
+        return test_model
 
     def add_log(
         self,

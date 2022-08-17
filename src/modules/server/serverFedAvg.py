@@ -46,12 +46,13 @@ class ServerFedAvg(ServerBase):
     def __init__(
         self, 
         model: ModelType,
-        clients: dict[int, ClientType]
+        clients: dict[int, ClientType],
+        dataset
     ) -> None:
 
-        self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        global_optimizer = create_optimizer(model, 'global')
-        self.global_optimizer_state_dict = global_optimizer.state_dict()
+        self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        server_optimizer = create_optimizer(model, 'global')
+        self.server_optimizer_state_dict = server_optimizer.state_dict()
         self.clients = clients
 
     def distribute_global_model_to_clients(
@@ -59,17 +60,16 @@ class ServerFedAvg(ServerBase):
     ) -> None:
 
         model = super().create_model(track_running_stats=False)
-        model.load_state_dict(self.global_model_state_dict)
-        global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        model.load_state_dict(self.server_model_state_dict)
+        server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         for m in range(len(self.clients)):
             if self.clients[m].active:
-                self.clients[m].model_state_dict = copy.deepcopy(global_model_state_dict)
+                self.clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
 
     def update_global_model(
         self, 
         client: dict[int, ClientType],
-        epoch: int
     ) -> None:
 
         with torch.no_grad():
@@ -79,10 +79,10 @@ class ServerFedAvg(ServerBase):
             
             if len(valid_client) > 0:
                 model = super().create_model(track_running_stats=False)
-                model.load_state_dict(self.global_model_state_dict)
-                global_optimizer = create_optimizer(model, 'global')
-                global_optimizer.load_state_dict(self.global_optimizer_state_dict)
-                global_optimizer.zero_grad()
+                model.load_state_dict(self.server_model_state_dict)
+                server_optimizer = create_optimizer(model, 'global')
+                server_optimizer.load_state_dict(self.server_optimizer_state_dict)
+                server_optimizer.zero_grad()
                 weight = torch.ones(len(valid_client))
                 weight = weight / weight.sum()
                 for k, v in model.named_parameters():
@@ -92,9 +92,9 @@ class ServerFedAvg(ServerBase):
                         for m in range(len(valid_client)):
                             tmp_v += weight[m] * valid_client[m].model_state_dict[k]
                         v.grad = (v.data - tmp_v).detach()
-                global_optimizer.step()
-                self.global_optimizer_state_dict = global_optimizer.state_dict()
-                self.global_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+                server_optimizer.step()
+                self.server_optimizer_state_dict = server_optimizer.state_dict()
+                self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
             for i in range(len(client)):
                 client[i].active = False
         return
@@ -144,20 +144,19 @@ class ServerFedAvg(ServerBase):
         )    
         return
     
-    def test(
+    def evaluate_trained_model(
         self,
         dataset,
-        batchnorm_dataset,
         logger,
         metric,
         global_epoch
     ):  
         data_loader = make_data_loader(dataset, 'global')
 
-        model = super().create_model()
-        model.load_state_dict(self.model_state_dict)
-        batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
-        test_model = make_batchnorm_stats(batchnorm_dataset, model, 'global')
+        model = super().create_test_model(
+            dataset=dataset,
+            model_state_dict=self.server_model_state_dict
+        )
 
         logger.safe(True)
         with torch.no_grad():
@@ -168,8 +167,8 @@ class ServerFedAvg(ServerBase):
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
                 output = model(input)['output']
-                loss = self.nll_loss(output, input['target'])
-                output = self.reform_model_output(
+                loss = super().nll_loss(output, input['target'])
+                output = super().reform_model_output(
                     output=output,
                     loss=loss
                 )
@@ -184,7 +183,7 @@ class ServerFedAvg(ServerBase):
                     'test', 
                     input_size
                 )
-                
+
             info = {
                 'info': [
                     'Model: {}'.format(cfg['model_tag']), 
