@@ -201,8 +201,12 @@ class ServerFedEnsemble(ServerBase):
                 target_logit_output = 0
                 for test_model in test_models:
                     test_model.train(False)
-                    output = test_model(input, logit=True)
-                    target_logit_output += output['logit']
+                    # output = test_model(input, logit=True)
+                    # target_logit_output += output['logit']
+
+                    output = test_model(input)
+                    target_logit_output += output['target']
+                    # output['loss'].backward()
 
                 target_logp = F.log_softmax(target_logit_output, dim=1)
                 test_acc += torch.sum( torch.argmax(target_logp, dim=1) == input['target'] ) #(torch.sum().item()
@@ -211,11 +215,11 @@ class ServerFedEnsemble(ServerBase):
             loss = loss.detach().numpy()
             test_acc = test_acc.detach().numpy() / input['target'].shape[0]
 
-            loss = self.nll_loss(output, input['target'])
-            output = self.reform_model_output(
-                output=output,
-                loss=loss
-            )
+            # loss = self.nll_loss(output, input['target'])
+            # output = self.reform_model_output(
+            #     output=output,
+            #     loss=loss
+            # )
 
             evaluation = []
             evaluation['Loss'] = loss

@@ -84,21 +84,6 @@ class ClientFedSgd(ClientBase):
         -------
         dict[int, object]
         '''
-        # clients = [None]
-        # client = ClientFedSgd(
-        #     client_id=0, 
-        #     model=model, 
-        #     # for fedsgd, the train dataset and test dataset
-        #     # will be generated in each epoch, dont need
-        #     # set them in initialization    
-        #     data_split={
-        #         'train': data_split['train'][m], 
-        #         'test': data_split['test'][m]
-        #     },
-        #     update_threshold=cfg['max_local_gradient_update']
-        # )
-        # clients[0] = client
-
         client_id = torch.arange(cfg['num_clients'])
         clients = [None for _ in range(cfg['num_clients'])]
         for m in range(len(clients)):
@@ -148,13 +133,15 @@ class ClientFedSgd(ClientBase):
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
                 optimizer.zero_grad()
-                output = model(input)['output']
-                loss = self.nll_loss(output, input['target'])
-                loss.backward()
-                output = self.reform_model_output(
-                    output=output,
-                    loss=loss
-                )
+                output = model(input)
+                output['loss'].backward()
+                # output = model(input)['output']
+                # loss = self.nll_loss(output, input['target'])
+                # loss.backward()
+                # output = self.reform_model_output(
+                #     output=output,
+                #     loss=loss
+                # )
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
                 optimizer.step()
                 evaluation = metric.evaluate(

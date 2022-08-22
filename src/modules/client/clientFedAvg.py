@@ -128,7 +128,6 @@ class ClientFedAvg(ClientBase):
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         '''
-        data_loader = make_data_loader({'train': dataset}, 'client')['train']
         model = create_model()
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
@@ -154,13 +153,9 @@ class ClientFedAvg(ClientBase):
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
                 optimizer.zero_grad()
-                output = model(input)['output']
-                loss = self.nll_loss(output, input['target'])
-                loss.backward()
-                output = self.reform_model_output(
-                    output=output,
-                    loss=loss
-                )
+                output = model(input)
+                output['loss'].backward()
+ 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
                 optimizer.step()
                 evaluation = metric.evaluate(

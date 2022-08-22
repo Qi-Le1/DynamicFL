@@ -33,10 +33,12 @@ class UserpFedGen(User):
     def train(self, glob_iter, personalized=False, early_stop=100, regularization=True, verbose=False):
         self.clean_up_counts()
         self.model.train()
+        # 固定generative model
         self.generative_model.eval()
         TEACHER_LOSS, DIST_LOSS, LATENT_LOSS = 0, 0, 0
         for epoch in range(self.local_epochs):
             self.model.train()
+            # TODO: self.K是什么
             for i in range(self.K):
                 self.optimizer.zero_grad()
                 #### sample from real dataset (un-weighted)

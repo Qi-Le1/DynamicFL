@@ -35,7 +35,6 @@ from models.api import (
 from modules.client.api import (
     ClientDynamicFL,
     ClientFedAvg,
-    ClientFedEnsemble,
     ClientFedGen,
     ClientFedProxy,
     ClientFedSgd
@@ -91,10 +90,11 @@ process_args(args)
 def main():
     process_command()
     seeds = list(range(cfg['init_seed'], cfg['init_seed'] + cfg['num_experiments']))
+
     for i in range(cfg['num_experiments']):
         model_tag_list = [str(seeds[i]), cfg['control_name']]
         cfg['model_tag'] = '_'.join([x for x in model_tag_list if x])
-        print('Experiment: {}'.format(cfg['model_tag']))
+        print(f"Experiment: {cfg['model_tag']}")
         runExperiment()
     return
 
@@ -145,7 +145,7 @@ def create_clients(
             data_split=data_split
         )
     elif cfg['algo_mode'] == 'fedensemble':
-        return ClientFedEnsemble.create_clients(
+        return ClientFedAvg.create_clients(
             model=model,
             data_split=data_split
         )
@@ -307,60 +307,34 @@ def test(
             output = model(input)
             evaluation = metric.evaluate(metric.metric_name['test'], input, output)
             logger.append(evaluation, 'test', input_size)
-        info = {'info': ['Model: {}'.format(cfg['model_tag']), 'Test Epoch: {}({:.0f}%)'.format(epoch, 100.)]}
+        info = {
+            'info': [
+                f"Model: {cfg['model_tag']}", 
+                'Test Epoch: {}({:.0f}%)'.format(epoch, 100.0)
+            ]
+        }
+
         logger.append(info, 'test', mean=False)
         print(logger.write('test', metric.metric_name['test']))
     logger.safe(False)
     return
 
-def cal_grad_interval(
-    local_grad_u: int,
-    update_threshold: int
-) -> int:
-    '''
-    Notes
-    -----
-    grad_interval = cfg['max_local_gradient_update'] - local_grad_u + 1.
-    Ex. 160 - 151 = 9, but we actually need to train 9 + 1 = 10 times
-    '''
-    grad_interval = update_threshold
-    if local_grad_u + update_threshold < cfg['max_local_gradient_update'] \
-        and local_grad_u + 2 * update_threshold > cfg['max_local_gradient_update']:
-        grad_interval = cfg['max_local_gradient_update'] - local_grad_u + 1
-    return grad_interval
 
-def is_local_gradient_update_valid(
-    local_grad_u: int,
-    update_threshold: int
-) -> bool:
-    '''
-    Notes
-    -----
-    If local_grad_u == 1, we need to start training in all situations.
-    If local_grad_u % update_threshold == 0, second situation that we
-    need to enter training
-    '''
-    if local_grad_u == 1:
-        return True
-    elif local_grad_u % update_threshold == 0:
-        return True
-    
-    return False
 
-def update_update_threshold(
-    clients: dict[int, ClientType],
-    client_ids: list[int]
-): 
-    if cfg['select_client_mode'] == 'fix':
-        pass
-    elif cfg['select_client_mode'] == 'dynamic':
-        Communication.distribute_dynamic_update_thresholds(
-            clients=clients,
-            client_ids=client_ids,
-            ratio_to_update_thresholds=cfg['ratio_to_update_thresholds']
-        )
-    else:
-        raise ValueError('select_client_mode wrong')
+# def update_update_threshold(
+#     clients: dict[int, ClientType],
+#     client_ids: list[int]
+# ): 
+#     if cfg['select_client_mode'] == 'fix':
+#         pass
+#     elif cfg['select_client_mode'] == 'dynamic':
+#         Communication.distribute_dynamic_update_thresholds(
+#             clients=clients,
+#             client_ids=client_ids,
+#             ratio_to_update_thresholds=cfg['ratio_to_update_thresholds']
+#         )
+#     else:
+#         raise ValueError('select_client_mode wrong')
 
 
 

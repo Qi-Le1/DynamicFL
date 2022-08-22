@@ -24,13 +24,16 @@ class FedGen(Server):
         self.local = 'local' in self.algorithm.lower()
         self.use_adam = 'adam' in self.algorithm.lower()
 
+        # TODO: 什么意思？为什么early stop
         self.early_stop = 20  # stop using generated samples after 20 local epochs
         self.student_model = copy.deepcopy(self.model)
+        # TODO: 产生generative model
         self.generative_model = create_generative_model(args.dataset, args.algorithm, self.model_name, args.embedding)
         if not args.train:
             print('number of generator parameteres: [{}]'.format(self.generative_model.get_number_of_parameters()))
             print('number of model parameteres: [{}]'.format(self.model.get_number_of_parameters()))
         self.latent_layer_idx = self.generative_model.latent_layer_idx
+        # TODO: init_ensemble_configs完哪里用了
         self.init_ensemble_configs()
         print("latent_layer_idx: {}".format(self.latent_layer_idx))
         print("label embedding {}".format(self.generative_model.embedding))
@@ -39,6 +42,8 @@ class FedGen(Server):
         print("generator alpha = {}, beta = {}".format(self.generative_alpha, self.generative_beta))
         self.init_loss_fn()
         self.train_data_loader, self.train_iter, self.available_labels = aggregate_user_data(data, args.dataset, self.ensemble_batch_size)
+
+        # 创建 generative_optimizer, generative_scheduler, optimizer, scheduler
         self.generative_optimizer = torch.optim.Adam(
             params=self.generative_model.parameters(),
             lr=self.ensemble_lr, betas=(0.9, 0.999),
@@ -52,10 +57,11 @@ class FedGen(Server):
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=0.98)
 
         #### creating users ####
+        # 初始化fedgen client类
         self.users = []
         for i in range(total_users):
-            id, train_data, test_data, label_info =read_user_data(i, data, dataset=args.dataset, count_labels=True)
-            self.total_train_samples+=len(train_data)
+            id, train_data, test_data, label_info = read_user_data(i, data, dataset=args.dataset, count_labels=True)
+            self.total_train_samples += len(train_data)
             self.total_test_samples += len(test_data)
             id, train, test=read_user_data(i, data, dataset=args.dataset)
             user=UserpFedGen(
@@ -74,12 +80,14 @@ class FedGen(Server):
             print("\n\n-------------Round number: ",glob_iter, " -------------\n\n")
             self.selected_users, self.user_idxs=self.select_users(glob_iter, self.num_users, return_idx=True)
             if not self.local:
+                # mode 是partial或者all
                 self.send_parameters(mode=self.mode)# broadcast averaged prediction model
             self.evaluate()
+            # chosen_verbose_user是干什么的 => 选一个打印看看效果的
             chosen_verbose_user = np.random.randint(0, len(self.users))
             self.timestamp = time.time() # log user-training start time
             for user_id, user in zip(self.user_idxs, self.selected_users): # allow selected users to train
-                verbose= user_id == chosen_verbose_user
+                verbose = user_id == chosen_verbose_user
                 # perform regularization using generated samples after the first communication round
                 user.train(
                     glob_iter,
@@ -94,6 +102,7 @@ class FedGen(Server):
                 self.evaluate_personalized_model()
 
             self.timestamp = time.time() # log server-agg start time
+            # TODO: 训练generator
             self.train_generator(
                 self.batch_size,
                 epoches=self.ensemble_epochs // self.n_teacher_iters,

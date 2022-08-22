@@ -47,7 +47,6 @@ class ServerFedAvg(ServerBase):
         self, 
         model: ModelType,
         clients: dict[int, ClientType],
-        dataset
     ) -> None:
 
         self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
@@ -55,7 +54,7 @@ class ServerFedAvg(ServerBase):
         self.server_optimizer_state_dict = server_optimizer.state_dict()
         self.clients = clients
 
-    def distribute_global_model_to_clients(
+    def distribute_server_model_to_clients(
         self
     ) -> None:
 
@@ -67,17 +66,10 @@ class ServerFedAvg(ServerBase):
                 self.clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
 
-    def update_global_model(
-        self, 
-        client: dict[int, ClientType],
-    ) -> None:
-
+    def update_server_model(self, client: dict[int, ClientType]) -> None:
         with torch.no_grad():
-            # 修改
             valid_client = [client[i] for i in range(len(client)) if client[i].active]
-            valid_client_idx = [i for i in range(len(client)) if client[i].active]
-            
-            if len(valid_client) > 0:
+            if valid_client:
                 model = super().create_model(track_running_stats=False)
                 model.load_state_dict(self.server_model_state_dict)
                 server_optimizer = create_optimizer(model, 'global')
@@ -95,6 +87,7 @@ class ServerFedAvg(ServerBase):
                 server_optimizer.step()
                 self.server_optimizer_state_dict = server_optimizer.state_dict()
                 self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+
             for i in range(len(client)):
                 client[i].active = False
         return
@@ -108,8 +101,8 @@ class ServerFedAvg(ServerBase):
         global_epoch: int
     ):
         logger.safe(True)
-        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)        
-        self.distribute_global_model_to_clients()
+        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)
+        self.distribute_server_model_to_clients()
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 
@@ -118,13 +111,14 @@ class ServerFedAvg(ServerBase):
             dataset_m = separate_dataset(dataset, self.clients[m].data_split['train'])
             if dataset_m is None:
                 self.clients[m].active = False
-            elif dataset_m is not None:
+            else:
                 self.clients[m].active = True
                 self.clients[m].train(
                     dataset=dataset_m, 
                     lr=lr, 
                     metric=metric, 
                     logger=logger,
+                    grad_updates_num=cfg['max_local_gradient_update']
                 )
 
             super().add_log(
@@ -137,11 +131,11 @@ class ServerFedAvg(ServerBase):
                 metric=metric,
                 logger=logger,
             )
-        logger.safe(False)     
-        self.update_global_model(
+        logger.safe(False)
+        self.update_server_model(
             clients=self.clients, 
             global_epoch=global_epoch
-        )    
+        )
         return
     
     def evaluate_trained_model(
@@ -166,12 +160,14 @@ class ServerFedAvg(ServerBase):
                 input = collate(input)
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
-                output = model(input)['output']
-                loss = super().nll_loss(output, input['target'])
-                output = super().reform_model_output(
-                    output=output,
-                    loss=loss
-                )
+                # output = model(input)['output']
+                # loss = super().nll_loss(output, input['target'])
+                # output = super().reform_model_output(
+                #     output=output,
+                #     loss=loss
+                # )
+                output = model(input)
+                output['loss'].backward()
 
                 evaluation = metric.evaluate(
                     metric.metric_name['test'], 

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import datetime
+from turtle import update
 import numpy as np
 import sys
 import time
 import torch
+import random
 import torch.nn.functional as F
 import models
 from itertools import compress
@@ -13,19 +15,28 @@ from config import cfg
 
 # from torchstat import stat
 
-from utils import (
+from utils.api import (
     to_device,  
     collate
 )
 
+from typing import Any
+
 from _typing import (
-    ModelType,
     DatasetType,
+    OptimizerType,
+    DataLoaderType,
+    ModelType,
     MetricType,
-    LoggerType
+    LoggerType,
+    ClientType,
+    ServerType
 )
 
-from models import make_batchnorm
+from models.api import (
+    create_model,
+    make_batchnorm
+)
 
 from optimizer.api import create_optimizer
 
@@ -41,18 +52,42 @@ class ClientDynamicFL(ClientBase):
         client_id: int, 
         model: ModelType, 
         data_split: list[int],
-        update_threshold: int
+        update_threshold: int,
+        # communicationMetaData: dict[int, Any]
     ) -> None:
 
         self.client_id = client_id
         self.data_split = data_split
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         self.update_threshold=update_threshold
+        # self.communicationMetaData = communicationMetaData
         self.total_params_num(model)
         optimizer = create_optimizer(model, 'local')
         self.optimizer_state_dict = optimizer.state_dict()
         self.active = False
-        self.buffer = None
+        # self.buffer = None
+
+    @classmethod
+    def create_communication_meta_data(cls, client_ids: list[int]) -> list[int]:
+        communicationMetaData = {}
+        if cfg['select_client_mode'] == 'fix':
+            client_ratio_to_update_thresholds = Communication.cal_fix_update_thresholds(
+                client_ids=client_ids, 
+                max_local_gradient_update=cfg['max_local_gradient_update'], 
+                ratio_to_number_of_uploads=cfg['ratio_to_number_of_uploads']
+            )
+            local_gradient_update_list = Communication.distribute_fix_local_gradient_update_list(
+                client_ids=client_ids, 
+                max_local_gradient_update=cfg['max_local_gradient_update'], 
+                ratio_to_update_thresholds=client_ratio_to_update_thresholds
+            )
+            communicationMetaData['local_gradient_update_list'] = local_gradient_update_list
+        # elif cfg['select_client_mode'] == 'dynamic':
+        #     local_gradient_update_list = {id: None for id in client_ids}
+        #     communicationMetaData['local_gradient_update_list'] = local_gradient_update_list
+        else:
+            raise ValueError('select_client_mode must in fix or dynamic')
+        return communicationMetaData
 
     @classmethod
     def create_clients(
@@ -60,20 +95,20 @@ class ClientDynamicFL(ClientBase):
         model: ModelType, 
         data_split: dict[str, dict[int, list[int]]],
     ) -> dict[int, ClientType]:
-        client_id = torch.arange(cfg['num_clients'])
-        client = [None for _ in range(cfg['num_clients'])]
-        client_to_update_threshold = make_communication(client_id=client_id)
-        for m in range(len(client)):
-            client[m] = Client(
-                client_id=client_id[m], 
+        client_ids = torch.arange(cfg['num_clients'])
+        clients = [None for _ in range(cfg['num_clients'])]
+        communicationMetaData = cls.create_communication_meta_data(client_ids=client_ids)
+        for m in range(len(clients)):
+            clients[m] = ClientDynamicFL(
+                client_id=client_ids[m], 
                 model=model, 
                 data_split={
                     'train': data_split['train'][m], 
                     'test': data_split['test'][m]
                 },
-                update_threshold=client_to_update_threshold[m]
+                local_gradient_update_list=communicationMetaData['local_gradient_update_list'][m]
             )
-        return client
+        return clients
 
     def total_params_num(self, model: ModelType):
         # a = model.parameters()
@@ -92,19 +127,18 @@ class ClientDynamicFL(ClientBase):
         lr: int, 
         metric: MetricType, 
         logger: LoggerType,
-        grad_interval: int
+        grad_updates_num: int
     ) -> None:
 
-        model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-        model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=False))
+        model = create_model()
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
         optimizer = create_optimizer(model, 'local')
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
-        updated_batch_num = 0
-        while updated_batch_num < grad_interval:
+        cur_grad_updates_num = 0
+        while cur_grad_updates_num < grad_updates_num:
             # Regenerate data loader if number of data_loader batches < grad_interval
             # number of data_loader batches = num of data points / batch_size
             data_loader = make_data_loader(
@@ -113,70 +147,74 @@ class ClientDynamicFL(ClientBase):
             )['train'] 
 
             for i, input in enumerate(data_loader):
-                updated_batch_num += 1                      
-                if updated_batch_num == grad_interval + 1:
+                cur_grad_updates_num += 1                      
+                if cur_grad_updates_num == grad_updates_num + 1:
                     break
-                
+
                 input = collate(input)
                 input_size = input['data'].size(0)
                 input = to_device(input, cfg['device'])
                 optimizer.zero_grad()
                 output = model(input)
                 output['loss'].backward()
+ 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
                 optimizer.step()
                 evaluation = metric.evaluate(
-                    metric_names=metric.metric_name['train'], 
-                    intput=input, 
-                    output=output
+                    metric.metric_name['train'], 
+                    input, 
+                    output
                 )
                 logger.append(
-                    result=evaluation, 
-                    tag='train', 
+                    evaluation, 
+                    'train', 
                     n=input_size
                 )
-                 
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        # for epoch in range(1, cfg['local']['num_epochs'] + 1):
-        #     for i, input in enumerate(data_loader):
-        #         input = collate(input)
-        #         input_size = input['data'].size(0)
-        #         input = to_device(input, cfg['device'])
-        #         optimizer.zero_grad()
-        #         output = model(input)
-        #         output['loss'].backward()
-        #         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-        #         optimizer.step()
-        #         evaluation = metric.evaluate(
-        #             metric_names=metric.metric_name['train'], 
-        #             intput=input, 
-        #             output=output
-        #         )
-        #         logger.append(
-        #             result=evaluation, 
-        #             tag='train', 
-        #             n=input_size
-        #         )
-        # self.optimizer_state_dict = optimizer.state_dict()
-        # self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return
 
-class Communication:
 
-    # Every iteration:
-    #     number_of_uploads: 2-3-4
-    #     ratio: 0.1-0.4-0.5
+class Communication:
+    '''
+    Class to handle communication issue in DynamicFL
+    '''
     # TODO: dynamic/fix client raio
+
     @classmethod
-    def distribute_fix_update_thresholds(
+    def cal_local_gradient_update_list(
         cls,
-        client_id: list[int],
-        max_local_gradient_update: int,
-        ratio_to_update_thresholds: dict[float, int]
-    ) -> list[int]:
+        update_threshold: int
+    ) -> int:
         '''
-        Distribute update_thresholds to clients based on ratio.
+        calculate which local_gradient_update we need to go to inner loop
+        of dynamicFL
+        '''
+        # gradient_updates_num = update_threshold
+        # if local_gradient_update + update_threshold < cfg['max_local_gradient_update'] \
+        #     and local_gradient_update + 2 * update_threshold > cfg['max_local_gradient_update']:
+        #     gradient_updates_num = cfg['max_local_gradient_update'] - local_gradient_update + 1
+
+        cur_local_gradient_update = 1
+        local_gradient_update_list = []
+        while cur_local_gradient_update <= cfg['max_local_gradient_update']:
+            local_gradient_update_list.append(cur_local_gradient_update)
+            cur_local_gradient_update += update_threshold
+            
+        return local_gradient_update_list
+
+    @classmethod
+    def distribute_fix_local_gradient_update_list(
+        cls,
+        client_ids: list[int],
+        max_local_gradient_update: int,
+        client_ratio_to_update_thresholds: dict[float, int]
+    ) -> list[list[int]]:
+        '''
+        Distribute list[local_gradient_update] for each client based on
+        update_threshold
+        local_gradient_update indicates that the client needs to enter
+        dynamicFL algo
         
         Parameters
         ----------
@@ -188,7 +226,7 @@ class Communication:
 
         Returns
         -------
-        list[int]
+        list[list[int]]
 
         Notes
         -----
@@ -196,70 +234,70 @@ class Communication:
         each local gradient update cycle)
         Maximum number of uploads is max_local_gradient_update
         '''
-        temp_client_id = copy.deepcopy(client_id)
-        client_to_update_threshold = [_ for _ in range(len(client_id))]
-        for ratio, update_threshold in ratio_to_update_thresholds.items():
+        temp_client_ids = copy.deepcopy(client_ids)
+        clients_update_threshold = list(range(len(client_ids)))
+        for ratio, update_threshold in client_ratio_to_update_thresholds.items():
             update_threshold = min(
                 max_local_gradient_update, 
                 max(1, update_threshold)
             )
             selected_client_ids = random.choice(
-                temp_client_id, 
-                ratio * len(client_id)
+                temp_client_ids, 
+                ratio * len(client_ids)
             )
-            client_to_update_threshold[selected_client_ids] = update_threshold
-            temp_client_id = list(set(temp_client_id) - set(selected_client_ids))
+            
+            clients_update_threshold[selected_client_ids] = cls.cal_local_gradient_update_list(
+                update_threshold=update_threshold
+            )
+            temp_client_ids = list(set(temp_client_ids) - set(selected_client_ids))
 
-        return client_to_update_threshold
+        return clients_update_threshold
     
-    @classmethod
-    def distribute_dynamic_update_thresholds(
-        cls,
-        client: dict[int, ClientType],
-        client_id: list[int],
-        ratio_to_update_thresholds: dict[float, int]
-    ) -> None:
-        '''
-        Distribute update_thresholds to clients based on ratio.
+    # @classmethod
+    # def distribute_dynamic_update_thresholds(
+    #     cls,
+    #     client: dict[int, ClientType],
+    #     client_id: list[int],
+    #     ratio_to_update_thresholds: dict[float, int]
+    # ) -> None:
+    #     '''
+    #     Distribute update_thresholds to clients based on ratio.
         
-        Parameters
-        ----------
-        client : dict[int, ClientType]
-        client_id : list[int]
-        ratio_to_update_thresholds : dict[float, int]
-            The key is the ratio of distributing client to each update_thresholds
-            The value is the update_thresholds
+    #     Parameters
+    #     ----------
+    #     client : dict[int, ClientType]
+    #     client_id : list[int]
+    #     ratio_to_update_thresholds : dict[float, int]
+    #         The key is the ratio of distributing client to each update_thresholds
+    #         The value is the update_thresholds
 
-        Returns
-        -------
-        None
-        '''
+    #     Returns
+    #     -------
+    #     None
+    #     '''
+    #     temp_client_id = copy.deepcopy(client_id)
+    #     client_to_update_threshold = [_ for _ in range(len(client_id))]
+    #     for ratio, update_threshold in ratio_to_update_thresholds.items():
+    #         selected_client_ids = random.choice(
+    #             temp_client_id, 
+    #             ratio * len(client_id)
+    #         )
+    #         client_to_update_threshold[selected_client_ids] = update_threshold
+    #         temp_client_id = list(set(temp_client_id) - set(selected_client_ids))
 
-        temp_client_id = copy.deepcopy(client_id)
-        client_to_update_threshold = [_ for _ in range(len(client_id))]
-        for ratio, update_threshold in ratio_to_update_thresholds.items():
-            selected_client_ids = random.choice(
-                temp_client_id, 
-                ratio * len(client_id)
-            )
-            client_to_update_threshold[selected_client_ids] = update_threshold
-            temp_client_id = list(set(temp_client_id) - set(selected_client_ids))
-
-        for selected_client_id, update_threshold in client_to_update_threshold.items():
-            client[selected_client_id].update_threshold = update_threshold
-        return
+    #     for selected_client_id, update_threshold in client_to_update_threshold.items():
+    #         client[selected_client_id].update_threshold = update_threshold
+    #     return
 
     @classmethod
     def cal_fix_update_thresholds(
         cls,
-        client_id: list[int],
         max_local_gradient_update: int,
-        ratio_to_number_of_uploads: dict[float, int]
+        client_ratio_to_number_of_uploads: dict[float, int]
     ) -> dict[float, int]:
         '''
         Calculate update_threshold
-        based on max_local_gradient_update and
-        predefined_ratio
+        based on max_local_gradient_update and number_of_uploads
         
         Parameters
         ----------
@@ -277,11 +315,11 @@ class Communication:
         -----
         update_threshold = int(max_local_gradient_update/number_of_uploads)
         '''
-        ratio_to_update_thresholds = {}
-        for ratio, number_of_uploads in ratio_to_number_of_uploads.items():
-            ratio_to_update_thresholds[ratio] = int(max_local_gradient_update/number_of_uploads)
+        client_ratio_to_update_thresholds = {}
+        for ratio, number_of_uploads in client_ratio_to_number_of_uploads.items():
+            client_ratio_to_update_thresholds[ratio] = int(max_local_gradient_update/number_of_uploads)
 
-        return ratio_to_update_thresholds
+        return client_ratio_to_update_thresholds
 
     @classmethod
     def cal_communication_budget(

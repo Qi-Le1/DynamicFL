@@ -9,7 +9,7 @@ import collections
 #################################
 class CNN(nn.Module):
     def __init__(self, dataset='mnist', model='cnn'):
-        super(NeuralNetwork, self).__init__()
+        super(CNN, self).__init__()
         # define network layers
         print("Creating model for {}".format(dataset))
         self.dataset = dataset
@@ -100,6 +100,7 @@ class CNN(nn.Module):
         :param start_layer_idx: if 0, conduct normal forward; otherwise, forward from the last few layers (see mapping function)
         :return:
         """
+        x = x['input']
         if start_layer_idx < 0: #
             return self.mapping(x, start_layer_idx=start_layer_idx, logit=logit)
         restults={}

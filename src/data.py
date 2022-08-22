@@ -167,6 +167,7 @@ def non_iid(
     data_split_mode_list = cfg['data_split_mode'].split('-')
     data_split_mode_tag = data_split_mode_list[-2]
     if data_split_mode_tag == 'l':
+        # 只有某n类数据
         data_split = {i: [] for i in range(num_users)}
         shard_per_user = int(data_split_mode_list[-1])
         target_idx_split = {}
@@ -188,6 +189,7 @@ def non_iid(
                 idx = torch.randint(len(target_idx_split[target_i]), (1,)).item()
                 data_split[i].extend(target_idx_split[target_i].pop(idx))
     elif data_split_mode_tag == 'd':
+        # Dirichlet distributon
         beta = float(data_split_mode_list[-1])
         dir = torch.distributions.dirichlet.Dirichlet(torch.tensor(beta).repeat(num_users))
         min_size = 0

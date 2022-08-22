@@ -68,7 +68,7 @@ class ServerBase:
         selected_client_ids,
         metric,
         logger
-    ):
+    ) -> None:
         if i % int((num_active_clients * cfg['log_interval']) + 1) == 0:
             _time = (time.time() - start_time) / (i + 1)
             global_epoch_finished_time = datetime.timedelta(seconds=_time * (num_active_clients - i - 1))
@@ -83,6 +83,35 @@ class ServerBase:
                             'Experiment Finished Time: {}'.format(exp_finished_time)]}
             logger.append(info, 'train', mean=False)
             print(logger.write('train', metric.metric_name['train']))
+
+    def add_dynamicFL_log(
+        local_gradient_update,
+        start_time,
+        global_epoch,
+        lr,
+        # selected_client_ids,
+        metric,
+        logger
+    ) -> None:
+        if local_gradient_update % int((cfg['max_local_gradient_update'] * cfg['log_interval']) + 1) == 0:
+            _time = (time.time() - start_time) / (local_gradient_update + 1)
+            global_epoch_finished_time = datetime.timedelta(seconds=_time * (cfg['max_local_gradient_update'] - local_gradient_update - 1))
+            exp_finished_time = global_epoch_finished_time + datetime.timedelta(
+                seconds=round((cfg['global']['num_epochs'] - global_epoch) * _time * cfg['max_local_gradient_update']))
+            exp_progress = 100. * local_gradient_update / cfg['max_local_gradient_update']
+            info = {'info': ['Model: {}'.format(cfg['model_tag']),
+                            'Train Epoch (C): {}({:.0f}%)'.format(global_epoch, exp_progress),
+                            'Learning rate: {:.6f}'.format(lr),
+                            # 'ID: {}({}/{})'.format(selected_client_ids[i], i + 1, cfg['max_local_gradient_update']),
+                            'Global Epoch Finished Time: {}'.format(global_epoch_finished_time),
+                            'Experiment Finished Time: {}'.format(exp_finished_time)]}
+            logger.append(info, 'train', mean=False)
+            print(logger.write('train', metric.metric_name['train']))
+
+        return
+
+
+
 
     def select_clients(
         self, clients: dict[int, ClientType]

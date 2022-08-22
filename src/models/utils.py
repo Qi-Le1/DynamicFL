@@ -3,12 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from config import cfg
-from .cnn import CNN
+from .resnet import resnet9
 
 def create_model(track_running_stats=False):
-    if cfg['model_name'] == 'CNN':
-        model = CNN()
-    
+    if cfg['model_name'] == 'resnet9':
+        model = resnet9()
+    else:
+        raise ValueError('model_name is wrong')
+        
     model.to(cfg["device"])
     model.apply(lambda m: make_batchnorm(m, momentum=None, track_running_stats=track_running_stats))
     return model

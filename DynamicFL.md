@@ -152,7 +152,7 @@ P: Communication cost / round:
 2. FedAvg
    
    1. 在fedgen中他是怎么算loss的？
-         1. 使用nllloss
+      1. 使用nllloss
    
       2. nllloss是什么？
             1. https://blog.csdn.net/qq_22210253/article/details/85229988
@@ -164,8 +164,8 @@ P: Communication cost / round:
             2. fenensemble和fedgen需要
    
       4. model.eval() == model.train(False), dropout层会让所有的激活单元都通过，而batchnorm层会停止计算和更新mean和var，直接使用在训练阶段已经学出的mean和var值。
-   3. FedProx
-   1. 对本地模型权重参数和全局模型权重参数的差异的限制
+   2. FedProx
+   3. 对本地模型权重参数和全局模型权重参数的差异的限制
          1. add proximal term to local optimal function: u/2(w-w_t)^2 (w_t is the global model at round t， w is local model parameter, u is penalty factor)
          2. 问题:
             1. u选择
@@ -174,8 +174,8 @@ P: Communication cost / round:
             1. change **local epoch E** to r_k^t - inexact minimizer (![image-20220807175349935](/Users/qile/Library/Application Support/typora-user-images/image-20220807175349935.png))
    4. FedEnsemble
    
-   1. FedAvg + Ensemble
-   5. FedGen
+   5. FedAvg + Ensemble
+   6. FedGen
 
       1. 区别:
 
@@ -186,43 +186,66 @@ P: Communication cost / round:
          2. server:
             1. 构建generator
             2. 改变loss func
-   2. softmax
+   7. softmax
    
-         1. ![image-20220808174249934](/Users/qile/Library/Application Support/typora-user-images/image-20220808174249934.png)
+      1. ![image-20220808174249934](/Users/qile/Library/Application Support/typora-user-images/image-20220808174249934.png)
       3. sigmoid
 
          1. ![img](https://pic4.zhimg.com/80/v2-7c4e9e545f0cc76bb5202fec4202f873_720w.jpg)
-   4. softmax和sigmoid的区别？
+   8. softmax和sigmoid的区别？
       5. Cross Entropy Loss Function （假设是多项式分布）
 
          1. ![image-20220808172910954](/Users/qile/Library/Application Support/typora-user-images/image-20220808172910954.png)
-   6. 为什么分类不使用mse loss （假设是高斯分布）:
+   9. 为什么分类不使用mse loss （假设是高斯分布）:
    
       1. 主要原因是在分类问题中，使用sigmoid/softmx得到概率，配合MSE损失函数时，采用梯度下降法进行学习时，会出现模型一开始训练时，学习速率非常慢的情况
          2. mse不好收敛，有Local optimal, 不是strong convex
-   7. 前置知识: knowledge distillation
+   10. 为什么要正则化:
+         1. 统一feature scale
+         2. Feature scale和learning rate之间也有一定联系，如果scale到了0-10000，learning也要增大
    
-      1. Knowledge distillation属于模型压缩的一种方法
+   11. 前置知识: knowledge distillation
    
-      2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
+       1. Knowledge distillation属于模型压缩的一种方法
    
-         1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
-   
-            2. KD的训练过程和传统的训练过程的对比
+       2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
 
-               1. 传统training过程(hard targets): 对ground truth求极大似然
-            2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
+          1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
    
-         3. KD的训练过程为什么更有效?
+             2. KD的训练过程和传统的训练过程的对比
    
-            1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
-               2. ![img](https://pic4.zhimg.com/80/v2-a9e90626c5ac6f64a7e04c89f6ce3013_720w.jpg)
-            3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
-               4. ![image-20220808190120115](/Users/qile/Library/Application Support/typora-user-images/image-20220808190120115.png)
-
-   6. DynamicFL:
-      1. ![image-20220814232035092](/Users/qile/Library/Application Support/typora-user-images/image-20220814232035092.png)
-
+                1. 传统training过程(hard targets): 对ground truth求极大似然
+             2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
+   
+          3. KD的训练过程为什么更有效?
+   
+             1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
+                2. ![img](https://pic4.zhimg.com/80/v2-a9e90626c5ac6f64a7e04c89f6ce3013_720w.jpg)
+             3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
+                4. ![image-20220808190120115](/Users/qile/Library/Application Support/typora-user-images/image-20220808190120115.png)
+   
+   12. DynamicFL:
+       1. dataset / data split
+       2. communication heterogneity
+       3. ![image-20220814232035092](/Users/qile/Library/Application Support/typora-user-images/image-20220814232035092.png)
+   
+   13. resnet:
+          1. 下一层的输入等于上一层的输入加上某个东西: x_l+1 = x_l + F(x_l, W_l)
+          2. ![image-20220819095512711](/Users/qile/Library/Application Support/typora-user-images/image-20220819095512711.png)
+          3. kernel_size是什么
+                1. 卷积核的长宽
+   
+          4. stride是什么
+                1. 步长, 每次移动几格
+   
+          5. Padding是什么
+                1. 四周填0
+   
+          6. dilation是什么
+                1. 如果值为1，就是常规的卷积，3×3为9个格子
+                2. 如果我们把dilation设置成2，其实也就是在两两卷积点中插入一个空白，使得3*3的卷积核，变为了5 * 5
+   
+   
    
 
 
@@ -266,32 +289,47 @@ P: Communication cost / round:
       4. fedgen
       5. dynamicfl
       6. fedsgd
-      
+
    2. **在server folder下建立不同的文件处理不同的算法**
 
    3. **FedEnsemble到底是哪篇？**
       1. 只是fedavg + ensemble
-      
+
    4. 构建不同server算法的逻辑
       1. **使用fedgen的模型**
-      
+
       2. **整理fedavg逻辑**
-      
+
          1. **loss的拆分: ce_loss => softmax + log + nllloss**
          2. **类的变化**
-      
-         
 
-8. 生成Non-iid数据
+8. **resnet详解**
+9. **修改resnet匹配现在的算法 (除了fengen)**
+10. 修改dynamicFL逻辑
+11. **生成Non-iid数据**
 
-9. 跑通所有算法
+12. 跑fedsgd
 
-10. 处理Federated Extended MNIST， Cifar-10， Cifar-100数据集
+13. 跑fedavg
 
-11. 如何验证算法work？
+14. 跑dynamicFL
+    1. select要多次上传的client模式不同
+       1. 从一开始固定某些clients的上传次数
+
+       2. 在每个global epoch的selected clients中随机选取number of uploads ratio clients做算法 (暂时放着, 不是非常make sense)
+
+15. 跑fedproxy
+
+16. 跑fedensemble
+
+17. 跑通所有算法 (除了fedgen)
+
+18. 处理Federated Extended MNIST， Cifar-10， Cifar-100数据集
+
+19. 如何验证算法work？
     1. 
 
-12. Info
+20. Info
     1. bagging 求mean
     2. stacking 把多个Output当一个feature, 再过一遍模型
     3. Boosting 

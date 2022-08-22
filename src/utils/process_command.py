@@ -2,7 +2,7 @@ from numpy import number
 from ..config import cfg
 from typing import List
 
-def process_ratio(ratio: str) -> List[float]:
+def process_client_ratio(ratio: str) -> List[float]:
     ratio = ratio.split('-')
     ratio = list(map(float, ratio))
     if sum(ratio) != 1:
@@ -34,33 +34,31 @@ def process_algo_parameters():
     None
     '''
     cfg['algo_mode'] = cfg['control']['algo_mode']
-    cfg['ratio'] = cfg['control']['ratio']
+    cfg['client_ratio'] = cfg['control']['client_ratio']
     cfg['number_of_uploads'] = cfg['control']['number_of_uploads']
     cfg['max_local_gradient_update'] = int(cfg['control']['max_local_gradient_update'])
 
     if cfg['control']['algo_mode'] == 'fedsgd':
-        cfg['ratio'] = 1
-        cfg['number_of_uploads'] = cfg['max_local_gradient_update']
+        pass
     elif cfg['control']['algo_mode'] == 'fedavg':
-        cfg['ratio'] = 1
-        cfg['number_of_uploads'] = 1
+        cfg['max_local_gradient_update'] = 1
     elif cfg['control']['algo_mode'] == 'dynamicfl':
-        ratio = process_ratio(
-            ratio=cfg['control']['ratio']
+        client_ratio = process_client_ratio(
+            client_ratio=cfg['control']['client_ratio']
         )
         number_of_uploads = process_number_of_uploads(
             number_of_uploads=cfg['control']['number_of_uploads'],
             max_local_gradient_update=cfg['max_local_gradient_update']
         )
-        if len(cfg['ratio']) != len(cfg['number_of_uploads']):
+        if len(cfg['client_ratio']) != len(cfg['number_of_uploads']):
             raise ValueError(
                 'length of ratio is not equal to length of number_of_uploads'
             )
         
-        ratio_to_number_of_uploads = {}
-        for i in range(len(ratio)):
-            ratio_to_number_of_uploads[ratio[i]] = number_of_uploads[i]
-        cfg['ratio_to_number_of_uploads'] = ratio_to_number_of_uploads
+        client_ratio_to_number_of_uploads = {}
+        for i in range(len(client_ratio)):
+            client_ratio_to_number_of_uploads[client_ratio[i]] = number_of_uploads[i]
+        cfg['client_ratio_to_number_of_uploads'] = client_ratio_to_number_of_uploads
     return
 
 
@@ -84,7 +82,7 @@ def process_command():
         cfg['num_clients'] = int(cfg['control']['num_clients'])
         cfg['active_rate'] = float(cfg['control']['active_rate'])
         cfg['data_split_mode'] = cfg['control']['data_split_mode']
-        cfg['diff_val'] = float(cfg['control']['diff_val'])
+        # cfg['diff_val'] = float(cfg['control']['diff_val'])
         cfg['local_epoch'] = 5
         cfg['gm'] = 0
         cfg['server'] = {}
