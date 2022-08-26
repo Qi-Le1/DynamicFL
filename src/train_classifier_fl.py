@@ -98,27 +98,6 @@ def main():
         runExperiment()
     return
 
-def make_communication(client_ids: list[int]) -> list[int]:
-    if cfg['select_client_mode'] == 'fix':
-        ratio_to_update_thresholds = Communication.cal_fix_update_thresholds(
-            client_ids=client_ids,
-            max_local_gradient_update=cfg['max_local_gradient_update'],
-            ratio_to_number_of_uploads=cfg['ratio_to_number_of_uploads']
-        )
-        cfg['ratio_to_update_thresholds'] = ratio_to_update_thresholds
-        client_to_update_threshold = Communication.distribute_fix_update_thresholds(
-            client_ids=client_ids,
-            max_local_gradient_update=cfg['max_local_gradient_update'],
-            ratio_to_update_thresholds=ratio_to_update_thresholds
-        )
-    elif cfg['select_client_mode'] == 'dynamic':
-        client_to_update_threshold = {}
-        for id in client_ids:
-            client_to_update_threshold[id] = None
-    else:
-        raise ValueError('select_client_mode must in fix or dynamic')
-    return client_to_update_threshold
-
 def create_clients(
     model: ModelType, 
     data_split: dict[str, dict[int, list[int]]],

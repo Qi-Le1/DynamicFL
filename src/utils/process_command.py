@@ -80,7 +80,8 @@ def process_command():
     cfg['alpha'] = 0.75
     if 'num_clients' in cfg['control']:
         cfg['num_clients'] = int(cfg['control']['num_clients'])
-        cfg['active_rate'] = float(cfg['control']['active_rate'])
+        # cfg['active_rate'] = float(cfg['control']['active_rate'])
+        cfg['active_rate'] = 0.1
         cfg['data_split_mode'] = cfg['control']['data_split_mode']
         # cfg['diff_val'] = float(cfg['control']['diff_val'])
         cfg['local_epoch'] = 5

@@ -1,0 +1,1 @@
+python train_classifier_fl.py --control_name CIFAR10_resnet9_5_iid_fedavg_fix_0.2-0.3-0.5_2-3-4_50

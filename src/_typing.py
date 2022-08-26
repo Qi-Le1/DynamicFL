@@ -20,11 +20,12 @@ from typing import (
 
 if TYPE_CHECKING:
     from datasets import (
-        MNIST,
-        FashionMNIST,
+        # MNIST,
+        # FashionMNIST,
+        FMNIST,
         CIFAR10,
         CIFAR100,
-        SVHN
+        # SVHN
     )
     # from datasets.mnist import MNIST
     # from datasets.mnist import FashionMNIST
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     # from datasets.cifar import CIFAR100
     # from datasets.svhn import SVHN
 
-    from models import (
+    from models.api import (
         ResNet,
         WideResNet
     )
