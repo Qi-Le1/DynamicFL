@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from config import cfg
-from utils import recur
+from utils.api import recur
 
 
 def Accuracy(output, target, topk=1):

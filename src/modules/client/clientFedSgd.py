@@ -36,11 +36,13 @@ from models.api import (
 
 from optimizer.api import create_optimizer
 
-from data import make_data_loader
+from data import (
+    make_data_loader,
+    separate_dataset
+)
 
 from .clientBase import ClientBase
 
-from ...data import separate_dataset
 
 class ClientFedSgd(ClientBase):
 

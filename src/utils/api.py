@@ -7,7 +7,7 @@ from .utils import (
     collate
 )
 from .utils import *
-from .config import (
+from .fedgen_config import (
     CONFIGS_,
     GENERATORCONFIGS
 )

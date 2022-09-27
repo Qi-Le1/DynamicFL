@@ -36,11 +36,12 @@ from models.api import (
 
 from optimizer.api import create_optimizer
 
-from data import make_data_loader
+from data import (
+    make_data_loader,
+    separate_dataset
+)
 
 from .clientBase import ClientBase
-
-from ...data import separate_dataset
 
 class ClientFedAvg(ClientBase):
 
@@ -49,7 +50,6 @@ class ClientFedAvg(ClientBase):
         client_id: int, 
         model: ModelType, 
         data_split: list[int],
-        update_threshold: int
     ) -> None:
 
         super().__init__()
@@ -57,8 +57,7 @@ class ClientFedAvg(ClientBase):
         self.client_id = client_id
         self.data_split = data_split
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        self.update_threshold=update_threshold
-        optimizer = create_optimizer(model, 'local')
+        optimizer = create_optimizer(model, 'client')
         self.optimizer_state_dict = optimizer.state_dict()
         self.active = False
         self.buffer = None
@@ -131,7 +130,7 @@ class ClientFedAvg(ClientBase):
         model = create_model()
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
-        optimizer = create_optimizer(model, 'local')
+        optimizer = create_optimizer(model, 'client')
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 

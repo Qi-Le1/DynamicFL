@@ -19,10 +19,10 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from datasets import (
+    from datasets.api import (
         # MNIST,
         # FashionMNIST,
-        FMNIST,
+        FashionMNIST,
         CIFAR10,
         CIFAR100,
         # SVHN
@@ -56,6 +56,16 @@ if TYPE_CHECKING:
         ServerFedProxy,
         ServerFedSgd
     )
+
+    from modules.client.api import (
+        ClientDynamicFL,
+        ClientFedAvg,
+        ClientFedGen,
+        ClientFedProxy,
+        ClientFedSgd
+    )
+
+
 
 from torch.utils.data import DataLoader
 
@@ -111,17 +121,25 @@ LoggerType = type['Logger']
 ClientType = type['Client']
 
 ServerType = Union[
-    type[ServerDynamicFL],
-    type[ServerFedAvg],
-    type[ServerFedEnsemble],
-    type[ServerFedGen],
-    type[ServerFedProxy],
-    type[ServerFedSgd]
+    type['ServerDynamicFL'],
+    type['ServerFedAvg'],
+    type['ServerFedEnsemble'],
+    type['ServerFedGen'],
+    type['ServerFedProxy'],
+    type['ServerFedSgd']
+]
+
+ClientType = Union[
+    type['ClientDynamicFL'],
+    type['ClientFedAvg'],
+    type['ClientFedGen'],
+    type['ClientFedProxy'],
+    type['ClientFedSgd'],
 ]
 
 Tag = Literal[
-    'local',
-    'global'
+    'client',
+    'server'
 ]
 
 Local_Gradient_Update = int

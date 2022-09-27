@@ -31,7 +31,7 @@ from utils.api import (
 from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 
-from ...data import (
+from data import (
     fetch_dataset, 
     split_dataset, 
     make_data_loader, 
@@ -47,49 +47,39 @@ class ServerFedAvg(ServerBase):
         self, 
         model: ModelType,
         clients: dict[int, ClientType],
+        dataset: DatasetType
     ) -> None:
 
+        super().__init__(dataset=dataset)
         self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        server_optimizer = create_optimizer(model, 'global')
+        server_optimizer = create_optimizer(model, 'server')
         self.server_optimizer_state_dict = server_optimizer.state_dict()
         self.clients = clients
 
-    def distribute_server_model_to_clients(
-        self
-    ) -> None:
-
-        model = super().create_model(track_running_stats=False)
-        model.load_state_dict(self.server_model_state_dict)
-        server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        for m in range(len(self.clients)):
-            if self.clients[m].active:
-                self.clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
-        return
-
-    def update_server_model(self, client: dict[int, ClientType]) -> None:
+    def update_server_model(self, clients: dict[int, ClientType]) -> None:
         with torch.no_grad():
-            valid_client = [client[i] for i in range(len(client)) if client[i].active]
-            if valid_client:
+            valid_clients = [clients[i] for i in range(len(clients)) if clients[i].active]
+            if valid_clients:
                 model = super().create_model(track_running_stats=False)
                 model.load_state_dict(self.server_model_state_dict)
-                server_optimizer = create_optimizer(model, 'global')
+                server_optimizer = create_optimizer(model, 'server')
                 server_optimizer.load_state_dict(self.server_optimizer_state_dict)
                 server_optimizer.zero_grad()
-                weight = torch.ones(len(valid_client))
+                weight = torch.ones(len(valid_clients))
                 weight = weight / weight.sum()
                 for k, v in model.named_parameters():
                     parameter_type = k.split('.')[-1]
                     if 'weight' in parameter_type or 'bias' in parameter_type:
                         tmp_v = v.data.new_zeros(v.size())
-                        for m in range(len(valid_client)):
-                            tmp_v += weight[m] * valid_client[m].model_state_dict[k]
+                        for m in range(len(valid_clients)):
+                            tmp_v += weight[m] * valid_clients[m].model_state_dict[k]
                         v.grad = (v.data - tmp_v).detach()
                 server_optimizer.step()
                 self.server_optimizer_state_dict = server_optimizer.state_dict()
                 self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
 
-            for i in range(len(client)):
-                client[i].active = False
+            for i in range(len(clients)):
+                clients[i].active = False
         return
     
     def train(
@@ -100,9 +90,13 @@ class ServerFedAvg(ServerBase):
         logger: LoggerType, 
         global_epoch: int
     ):
+
         logger.safe(True)
         selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)
-        self.distribute_server_model_to_clients()
+        super().distribute_server_model_to_clients(
+            server_model_state_dict=self.server_model_state_dict,
+            clients=self.clients
+        )
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 
@@ -134,7 +128,6 @@ class ServerFedAvg(ServerBase):
         logger.safe(False)
         self.update_server_model(
             clients=self.clients, 
-            global_epoch=global_epoch
         )
         return
     
@@ -145,10 +138,12 @@ class ServerFedAvg(ServerBase):
         metric,
         global_epoch
     ):  
-        data_loader = make_data_loader(dataset, 'global')
+        data_loader = make_data_loader(
+            dataset={'test': dataset}, 
+            tag='server'
+        )['test']
 
         model = super().create_test_model(
-            dataset=dataset,
             model_state_dict=self.server_model_state_dict
         )
 
@@ -167,7 +162,6 @@ class ServerFedAvg(ServerBase):
                 #     loss=loss
                 # )
                 output = model(input)
-                output['loss'].backward()
 
                 evaluation = metric.evaluate(
                     metric.metric_name['test'], 

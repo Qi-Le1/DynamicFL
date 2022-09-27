@@ -1,5 +1,5 @@
 from numpy import number
-from ..config import cfg
+from config import cfg
 from typing import List
 
 def process_client_ratio(ratio: str) -> List[float]:
@@ -97,35 +97,36 @@ def process_command():
             cfg['client']['batch_size'] = {'train': 100, 'test': 500}
         else:
             cfg['client']['batch_size'] = {'train': 250, 'test': 500}
-        cfg['local'] = {}
-        cfg['local']['optimizer_name'] = 'SGD'
-        cfg['local']['lr'] = 3e-2
-        cfg['local']['momentum'] = 0.9
-        cfg['local']['weight_decay'] = 5e-4
-        cfg['local']['nesterov'] = True
-        cfg['local']['num_epochs'] = cfg['local_epoch']
-        cfg['global'] = {}
-        cfg['global']['batch_size'] = {'train': 250, 'test': 500}
-        cfg['global']['shuffle'] = {'train': True, 'test': False}
+
+        cfg['client']['optimizer_name'] = 'SGD'
+        cfg['client']['lr'] = 3e-2
+        cfg['client']['momentum'] = 0.9
+        cfg['client']['weight_decay'] = 5e-4
+        cfg['client']['nesterov'] = True
+        cfg['client']['num_epochs'] = cfg['local_epoch']
+
+        cfg['server']['batch_size'] = {'train': 250, 'test': 500}
+        cfg['server']['shuffle'] = {'train': True, 'test': False}
         if cfg['num_clients'] > 10:
-            cfg['global']['num_epochs'] = 800
+            cfg['server']['num_epochs'] = 800
         else:
-            cfg['global']['num_epochs'] = 800
-        cfg['global']['optimizer_name'] = 'SGD'
-        cfg['global']['lr'] = 1
-        cfg['global']['momentum'] = cfg['gm']
-        cfg['global']['weight_decay'] = 0
-        cfg['global']['nesterov'] = False
-        cfg['global']['scheduler_name'] = 'CosineAnnealingLR'
+            cfg['server']['num_epochs'] = 800
+        cfg['server']['optimizer_name'] = 'SGD'
+        cfg['server']['lr'] = 1
+        cfg['server']['momentum'] = cfg['gm']
+        cfg['server']['weight_decay'] = 0
+        cfg['server']['nesterov'] = False
+        cfg['server']['scheduler_name'] = 'CosineAnnealingLR'
     else:
-        model_name = cfg['model_name']
-        cfg[model_name]['shuffle'] = {'train': True, 'test': False}
-        cfg[model_name]['optimizer_name'] = 'SGD'
-        cfg[model_name]['lr'] = 3e-2
-        cfg[model_name]['momentum'] = 0.9
-        cfg[model_name]['weight_decay'] = 5e-4
-        cfg[model_name]['nesterov'] = True
-        cfg[model_name]['scheduler_name'] = 'CosineAnnealingLR'
-        cfg[model_name]['num_epochs'] = 400
-        cfg[model_name]['batch_size'] = {'train': 250, 'test': 500}
+        raise ValueError('no num_clients')
+        # model_name = cfg['model_name']
+        # cfg[model_name]['shuffle'] = {'train': True, 'test': False}
+        # cfg[model_name]['optimizer_name'] = 'SGD'
+        # cfg[model_name]['lr'] = 3e-2
+        # cfg[model_name]['momentum'] = 0.9
+        # cfg[model_name]['weight_decay'] = 5e-4
+        # cfg[model_name]['nesterov'] = True
+        # cfg[model_name]['scheduler_name'] = 'CosineAnnealingLR'
+        # cfg[model_name]['num_epochs'] = 400
+        # cfg[model_name]['batch_size'] = {'train': 250, 'test': 500}
     return

@@ -17,7 +17,7 @@ from _typing import (
     ClientType
 )
 
-from models import make_batchnorm
+from models.api import make_batchnorm
 from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 

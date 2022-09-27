@@ -13,7 +13,7 @@ from config import cfg
 
 # from torchstat import stat
 
-from utils import (
+from utils.api import (
     to_device,  
     collate
 )
@@ -25,7 +25,7 @@ from _typing import (
     LoggerType
 )
 
-from models import make_batchnorm
+from models.api import make_batchnorm
 
 from optimizer.api import create_optimizer
 

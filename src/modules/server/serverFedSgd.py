@@ -30,7 +30,7 @@ from optimizer.api import create_optimizer
 from ..client.api import ClientFedSgd
 from .serverBase import ServerBase
 
-from ...data import separate_dataset
+from data import separate_dataset
 
 
 class ServerFedSgd(ServerBase):
@@ -134,7 +134,10 @@ class ServerFedSgd(ServerBase):
             selected_client_ids=selected_client_ids,
             dataset=dataset
         )
-        self.distribute_global_model_to_clients()
+        super().distribute_server_model_to_clients(
+            server_model_state_dict=self.server_model_state_dict,
+            clients=self.clients
+        )
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 

@@ -23,7 +23,7 @@ from models.api import (
     make_batchnorm
 )
 
-from ...data import (
+from data import (
     fetch_dataset, 
     split_dataset, 
     make_data_loader, 
@@ -41,7 +41,7 @@ class ServerBase:
         dataset
     ) -> None:
 
-        self.train_batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
+        self.train_batchnorm_dataset = make_batchnorm_dataset(dataset)
         return
     
     def create_model(self, track_running_stats=False):
@@ -54,9 +54,23 @@ class ServerBase:
 
         model = create_model()
         model.load_state_dict(model_state_dict)
-        test_model = make_batchnorm_stats(self.train_batchnorm_dataset, model, 'global')
+        test_model = make_batchnorm_stats(self.train_batchnorm_dataset, model, 'server')
 
         return test_model
+
+    def distribute_server_model_to_clients(
+        self,
+        server_model_state_dict,
+        clients
+    ) -> None:
+
+        model = self.create_model(track_running_stats=False)
+        model.load_state_dict(server_model_state_dict)
+        server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        for m in range(len(clients)):
+            if clients[m].active:
+                clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
+        return
 
     def add_log(
         self,
@@ -73,7 +87,7 @@ class ServerBase:
             _time = (time.time() - start_time) / (i + 1)
             global_epoch_finished_time = datetime.timedelta(seconds=_time * (num_active_clients - i - 1))
             exp_finished_time = global_epoch_finished_time + datetime.timedelta(
-                seconds=round((cfg['global']['num_epochs'] - global_epoch) * _time * num_active_clients))
+                seconds=round((cfg['server']['num_epochs'] - global_epoch) * _time * num_active_clients))
             exp_progress = 100. * i / num_active_clients
             info = {'info': ['Model: {}'.format(cfg['model_tag']),
                             'Train Epoch (C): {}({:.0f}%)'.format(global_epoch, exp_progress),
@@ -97,7 +111,7 @@ class ServerBase:
             _time = (time.time() - start_time) / (local_gradient_update + 1)
             global_epoch_finished_time = datetime.timedelta(seconds=_time * (cfg['max_local_gradient_update'] - local_gradient_update - 1))
             exp_finished_time = global_epoch_finished_time + datetime.timedelta(
-                seconds=round((cfg['global']['num_epochs'] - global_epoch) * _time * cfg['max_local_gradient_update']))
+                seconds=round((cfg['server']['num_epochs'] - global_epoch) * _time * cfg['max_local_gradient_update']))
             exp_progress = 100. * local_gradient_update / cfg['max_local_gradient_update']
             info = {'info': ['Model: {}'.format(cfg['model_tag']),
                             'Train Epoch (C): {}({:.0f}%)'.format(global_epoch, exp_progress),
@@ -109,8 +123,6 @@ class ServerBase:
             print(logger.write('train', metric.metric_name['train']))
 
         return
-
-
 
 
     def select_clients(

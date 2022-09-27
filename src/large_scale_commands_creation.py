@@ -67,14 +67,10 @@ verbose: False
 # test num_clients: 100 / 300
 # test datasets: CIFAR10 / CIFAR100 / FMNIST
 # test data_split_mode: iid / non-iid
-
-# for fedavg test all / de
-# for fedavg decoder test compresssion 0 / 1
-# test explicit / implicit
-# test info 0 / 1
-# test global / local
-# test node num 1 / 100 / 300 / max
-# test dataset ML100K / ML1M / ML10M / ML20M
+# test max_local_gradient_update: 10 / 50 / 100
+# for dynamicfl: test select_client_mode: fix / dynamic
+# for dynamicfl: test client_ratio: 0.2-0.3-0.5
+# for dynamicfl: test number_of_uploads: 2-3-4
 
 def main():
     run = args['run']

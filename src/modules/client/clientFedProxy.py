@@ -26,7 +26,7 @@ from _typing import (
     LoggerType
 )
 
-from models import make_batchnorm
+from models.api import make_batchnorm
 
 from optimizer.api import create_optimizer
 

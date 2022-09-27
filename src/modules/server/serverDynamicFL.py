@@ -35,7 +35,7 @@ from utils.api import (
 from optimizer.api import create_optimizer
 from .serverBase import ServerBase
 
-from ...data import (
+from data import (
     fetch_dataset, 
     split_dataset, 
     make_data_loader, 
@@ -170,7 +170,10 @@ class ServerDynamicFL(ServerBase):
     ):
         logger.safe(True)
         selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)
-        self.distribute_server_model_to_clients()
+        super().distribute_server_model_to_clients(
+            server_model_state_dict=self.server_model_state_dict,
+            clients=self.clients
+        )
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 

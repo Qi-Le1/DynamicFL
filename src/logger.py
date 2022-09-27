@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from torch.utils.tensorboard import SummaryWriter
 from numbers import Number
-from utils import ntuple
+# from utils import ntuple
 
 
 class Logger:
