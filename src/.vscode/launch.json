@@ -13,8 +13,80 @@
             "justMyCode": true,
             "args": [
                 "--control_name",
-                "CIFAR10_resnet9_5_iid_fedavg_fix_0.2-0.3-0.5_2-3-4_50",
+                "CIFAR10_resnet9_10_iid_fedavg_fix_0.2-0.3-0.5_2-3-4_250",
             ],
-        }
+        },
+        {
+            "name": "FedSgd",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_1_iid_fedsgd_fix_0.2-0.3-0.5_2-3-4_10",
+            ],
+        },
+        {
+            "name": "FedProxy",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_5_iid_fedproxy_fix_0.2-0.3-0.5_2-3-4_10",
+            ],
+        },
+        {
+            "name": "FedEnsemble",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_5_iid_fedensemble_fix_0.2-0.3-0.5_2-3-4_1",
+            ],
+        },
+        {
+            "name": "FedGen",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_5_iid_fedgen_fix_0.2-0.3-0.5_2-3-4_10",
+            ],
+        },
+        {
+            "name": "DynamicFL",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_10_non-iid-d-2_dynamicfl_fix_0.5-0.5_2-1_10",
+            ],
+        },
+        {
+            "name": "Test: DynamicFL",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/test_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_resnet9_10_iid_dynamicfl_fix_0.5-0.5_2-1_10",
+            ],
+        },
     ]
 }

@@ -59,8 +59,6 @@ class User:
         self.label_counts = {}
 
 
-
-
     def init_loss_fn(self):
         # negative log likelihood loss
         self.loss=nn.NLLLoss()

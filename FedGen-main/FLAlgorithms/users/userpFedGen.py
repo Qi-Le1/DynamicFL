@@ -38,25 +38,37 @@ class UserpFedGen(User):
         TEACHER_LOSS, DIST_LOSS, LATENT_LOSS = 0, 0, 0
         for epoch in range(self.local_epochs):
             self.model.train()
-            # TODO: self.K是什么
+            # TODO: self.K是什么 -> local step
             for i in range(self.K):
                 self.optimizer.zero_grad()
                 #### sample from real dataset (un-weighted)
                 samples =self.get_next_train_batch(count_labels=True)
+
+                # 获取并更新当前Batch labels
                 X, y = samples['X'], samples['y']
                 self.update_label_counts(samples['labels'], samples['counts'])
+                
+                # 使用batch数据Predict, 获取Logit, 计算negative log likelihood loss
                 model_result=self.model(X, logit=True)
                 user_output_logp = model_result['output']
+                # 学生output和ground truth的loss
                 predictive_loss=self.loss(user_output_logp, y)
 
                 #### sample y and generate z
                 if regularization and epoch < early_stop:
+                    # init 'generative_beta': 1, 学生output和老师output的loss的系数
+                    # init 'generative_alpha':10, 老师output和ground truth的loss的系数
                     generative_alpha=self.exp_lr_scheduler(glob_iter, decay=0.98, init_lr=self.generative_alpha)
                     generative_beta=self.exp_lr_scheduler(glob_iter, decay=0.98, init_lr=self.generative_beta)
                     ### get generator output(latent representation) of the same label
                     gen_output=self.generative_model(y, latent_layer_idx=self.latent_layer_idx)['output']
+                    # 将latent representation放到model里, 跑predict layer
                     logit_given_gen=self.model(gen_output, start_layer_idx=self.latent_layer_idx, logit=True)['logit']
                     target_p=F.softmax(logit_given_gen, dim=1).clone().detach()
+                    # loss between the predict result from the local model and the result using
+                    # generator latent representation as local model predict layer input
+                    # self.ensemble_loss: nn.KLDivLoss(reduction="batchmean")
+                    # 算Loss between 学生output和老师output
                     user_latent_loss= generative_beta * self.ensemble_loss(user_output_logp, target_p)
 
                     sampled_y=np.random.choice(self.available_labels, self.gen_batch_size)
@@ -64,11 +76,13 @@ class UserpFedGen(User):
                     gen_result=self.generative_model(sampled_y, latent_layer_idx=self.latent_layer_idx)
                     gen_output=gen_result['output'] # latent representation when latent = True, x otherwise
                     user_output_logp =self.model(gen_output, start_layer_idx=self.latent_layer_idx)['output']
-                    teacher_loss =  generative_alpha * torch.mean(
+                    # 算老师output和ground truth的loss
+                    teacher_loss = generative_alpha * torch.mean(
                         self.generative_model.crossentropy_loss(user_output_logp, sampled_y)
                     )
                     # this is to further balance oversampled down-sampled synthetic data
                     gen_ratio = self.gen_batch_size / self.batch_size
+                    # 学生output和ground truth的loss, 老师output和ground truth的loss, 学生output和老师output的loss
                     loss=predictive_loss + gen_ratio * teacher_loss + user_latent_loss
                     TEACHER_LOSS+=teacher_loss
                     LATENT_LOSS+=user_latent_loss
@@ -89,6 +103,7 @@ class UserpFedGen(User):
             info+=', Latent Loss={:.4f}'.format(LATENT_LOSS)
             print(info)
 
+    # 没用
     def adjust_weights(self, samples):
         labels, counts = samples['labels'], samples['counts']
         #weight=self.label_weights[y][:, user_idx].reshape(-1, 1)

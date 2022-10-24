@@ -206,23 +206,24 @@ P: Communication cost / round:
    
    11. 前置知识: knowledge distillation
    
-       1. Knowledge distillation属于模型压缩的一种方法
+          1. Knowledge distillation属于模型压缩的一种方法
    
-       2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
+          2. 为什么kd可以在减少模型参数的情况下获得和大模型差不多的效果？
 
-          1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
+             1. 模型的参数量和performance是非线性关系，存在边际效应，所以可以找一个optimal point
    
-             2. KD的训练过程和传统的训练过程的对比
+                2. KD的训练过程和传统的训练过程的对比
    
-                1. 传统training过程(hard targets): 对ground truth求极大似然
-             2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
+                   1. 传统training过程(hard targets): 对ground truth求极大似然
+                2. KD的training过程(soft targets): 用large model的class probabilities作为soft targets
    
-          3. KD的训练过程为什么更有效?
+             3. KD的训练过程为什么更有效?
    
-             1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
-                2. ![img](https://pic4.zhimg.com/80/v2-a9e90626c5ac6f64a7e04c89f6ce3013_720w.jpg)
-             3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
-                4. ![image-20220808190120115](/Users/qile/Library/Application Support/typora-user-images/image-20220808190120115.png)
+                1. softmax层的输出，除了正例之外，负标签也带有大量的信息，比如某些负标签对应的概率远远大于其他负标签。而在传统的训练过程(hard target)中，所有负标签都被统一对待。也就是说，KD的训练方式使得每个样本给Net-S带来的信息量大于传统的训练方式。
+                   2. ![img](https://pic4.zhimg.com/80/v2-a9e90626c5ac6f64a7e04c89f6ce3013_720w.jpg)
+                3. ![image-20220808183524104](/Users/qile/Library/Application Support/typora-user-images/image-20220808183524104.png)
+                   4. ![image-20220808190120115](/Users/qile/Library/Application Support/typora-user-images/image-20220808190120115.png)
+                   4. ![img](https://pic1.zhimg.com/80/v2-88fddb5e4cdab04ac5adc9dbd3e17fa0_720w.webp)
    
    12. DynamicFL:
        1. dataset / data split
@@ -335,3 +336,24 @@ P: Communication cost / round:
     3. Boosting 
     4. Bootstrap 有放回的均匀抽样
     5. Knowledge: soft label来训练更准确
+21. fedgen available labels
+22. what if only average predict layer and do mapping between logic vector and the latent vector?
+
+
+
+**实验部分**
+
+1. 10/23/2022
+   1. Fedavg & DynamicFL (7*4=28个实验 => 一张显卡2个 => 一台机子同时8个 => 三台机子)
+      1. α of dirichlet distribution
+         1. 0.1
+         2. 1
+         3. 5
+      2. totally split class
+         1. 2
+         2. 5
+         3. 7
+      3. dynamicFL
+         1. 0.2-0.8 2-1
+         2. 0.5-0.5 2-1
+         3. 0.8-0.2 2-1

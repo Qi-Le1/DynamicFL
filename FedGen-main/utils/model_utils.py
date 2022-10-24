@@ -206,7 +206,7 @@ def get_dataset_name(dataset):
         raise ValueError('Unsupported dataset {}'.format(dataset))
     return passed_dataset
 
-
+# self.generative_model = create_generative_model(args.dataset, args.algorithm, self.model_name, args.embedding)
 def create_generative_model(dataset, algorithm='', model='cnn', embedding=False):
     passed_dataset=get_dataset_name(dataset)
     assert any([alg in algorithm for alg in ['FedGen', 'FedGen']])

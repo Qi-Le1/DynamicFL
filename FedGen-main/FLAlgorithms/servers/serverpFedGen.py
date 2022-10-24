@@ -24,7 +24,7 @@ class FedGen(Server):
         self.local = 'local' in self.algorithm.lower()
         self.use_adam = 'adam' in self.algorithm.lower()
 
-        # TODO: 什么意思？为什么early stop
+        # 为什么early stop, 实验测的参数
         self.early_stop = 20  # stop using generated samples after 20 local epochs
         self.student_model = copy.deepcopy(self.model)
         # TODO: 产生generative model
@@ -132,6 +132,7 @@ class FedGen(Server):
         self.label_weights, self.qualified_labels = self.get_label_weights()
         TEACHER_LOSS, STUDENT_LOSS, DIVERSITY_LOSS, STUDENT_LOSS2 = 0, 0, 0, 0
 
+        # update_generator_(self.n_teacher_iters, self.model, TEACHER_LOSS, STUDENT_LOSS, DIVERSITY_LOSS)
         def update_generator_(n_iters, student_model, TEACHER_LOSS, STUDENT_LOSS, DIVERSITY_LOSS):
             self.generative_model.train()
             student_model.eval()
@@ -142,6 +143,7 @@ class FedGen(Server):
                 ## feed to generator
                 gen_result=self.generative_model(y_input, latent_layer_idx=latent_layer_idx, verbose=True)
                 # get approximation of Z( latent) if latent set to True, X( raw image) otherwise
+                # 加高斯noise
                 gen_output, eps=gen_result['output'], gen_result['eps']
                 ##### get losses ####
                 # decoded = self.generative_regularizer(gen_output)
@@ -168,8 +170,9 @@ class FedGen(Server):
                 student_loss=F.kl_div(F.log_softmax(student_output['logit'], dim=1), F.softmax(teacher_logit, dim=1))
                 if self.ensemble_beta > 0:
                     loss=self.ensemble_alpha * teacher_loss - self.ensemble_beta * student_loss + self.ensemble_eta * diversity_loss
-                else:
+                else: # 暂时进到这
                     loss=self.ensemble_alpha * teacher_loss + self.ensemble_eta * diversity_loss
+                
                 loss.backward()
                 self.generative_optimizer.step()
                 TEACHER_LOSS += self.ensemble_alpha * teacher_loss#(torch.mean(TEACHER_LOSS.double())).item()
