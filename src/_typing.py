@@ -54,7 +54,7 @@ if TYPE_CHECKING:
         ServerFedEnsemble,
         ServerFedGen,
         ServerFedProxy,
-        ServerFedSgd
+        ServerDynamicSgd
     )
 
     from modules.client.api import (
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
         ClientFedAvg,
         ClientFedGen,
         ClientFedProxy,
-        ClientFedSgd
+        ClientDynamicSgd
     )
 
 
@@ -126,7 +126,7 @@ ServerType = Union[
     type['ServerFedEnsemble'],
     type['ServerFedGen'],
     type['ServerFedProxy'],
-    type['ServerFedSgd']
+    type['ServerDynamicSgd']
 ]
 
 ClientType = Union[
@@ -134,7 +134,7 @@ ClientType = Union[
     type['ClientFedAvg'],
     type['ClientFedGen'],
     type['ClientFedProxy'],
-    type['ClientFedSgd'],
+    type['ClientDynamicSgd'],
 ]
 
 Tag = Literal[

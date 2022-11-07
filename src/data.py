@@ -198,7 +198,7 @@ def non_iid(
         required_min_size = 10
         N = target.size(0)
         while min_size < required_min_size:
-            print(f'min_size: {min_size}')
+            # print(f'min_size: {min_size}')
             data_split = [[] for _ in range(num_users)]
             for target_i in range(cfg['target_size']):
                 target_idx = torch.where(target == target_i)[0]

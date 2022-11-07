@@ -357,3 +357,18 @@ P: Communication cost / round:
          1. 0.2-0.8 2-1
          2. 0.5-0.5 2-1
          3. 0.8-0.2 2-1
+2. 10/25/2022
+   1. 加上限: fedsgd
+   2. **修改resnet9至resnet18**
+   3. **增加non predetermind selection**
+   4. **修改non-iid生成数据的参数**
+      1. **α of dirichlet distribution**
+         1. **0.1**
+         2. **0.3**
+         3. **0.5**
+         4. **1**
+      2. **totally split class**
+         1. **1**
+         2. **2**
+         3. **5**
+         4. **7**

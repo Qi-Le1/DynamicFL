@@ -35,15 +35,17 @@ def process_algo_parameters():
     None
     '''
     cfg['algo_mode'] = cfg['control']['algo_mode']
-    cfg['client_ratio'] = cfg['control']['client_ratio']
-    cfg['number_of_uploads'] = cfg['control']['number_of_uploads']
     cfg['max_local_gradient_update'] = int(cfg['control']['max_local_gradient_update'])
 
-    if cfg['control']['algo_mode'] == 'fedsgd':
+    if cfg['control']['algo_mode'] == 'dynamicsgd':
         pass
     elif cfg['control']['algo_mode'] == 'fedavg':
         pass
     elif cfg['control']['algo_mode'] == 'dynamicfl':
+        cfg['select_client_mode'] = cfg['control']['select_client_mode']
+        cfg['client_ratio'] = cfg['control']['client_ratio']
+        cfg['number_of_uploads'] = cfg['control']['number_of_uploads']
+
         client_ratio = process_client_ratio(
             client_ratio=cfg['control']['client_ratio']
         )
@@ -66,7 +68,6 @@ def process_algo_parameters():
 
 def process_command():
     process_algo_parameters()
-    cfg['select_client_mode'] = cfg['control']['select_client_mode']
     cfg['data_name'] = cfg['control']['data_name']
     cfg['model_name'] = cfg['control']['model_name']
     cfg['algo_mode'] = cfg['control']['algo_mode']
@@ -82,8 +83,8 @@ def process_command():
     cfg['alpha'] = 0.75
     if 'num_clients' in cfg['control']:
         cfg['num_clients'] = int(cfg['control']['num_clients'])
-        # cfg['active_rate'] = float(cfg['control']['active_rate'])
-        cfg['active_rate'] = 0.1
+        cfg['active_rate'] = float(cfg['control']['active_rate'])
+        # cfg['active_rate'] = 0.1
         cfg['data_split_mode'] = cfg['control']['data_split_mode']
         # cfg['diff_val'] = float(cfg['control']['diff_val'])
         cfg['local_epoch'] = 5
@@ -93,6 +94,19 @@ def process_command():
         cfg['server']['batch_size'] = {'train': 250, 'test': 500}
         cfg['client'] = {}
         cfg['client']['shuffle'] = {'train': True, 'test': False}
+        cfg['client']['batch_size'] = {'train': 10, 'test': 500}
+
+        # predifined_train_batch_size = 10
+        # if cfg['algo_mode'] == 'dynamicsgd':
+        #     # if cfg['num_clients'] > 10:
+        #     multiply_ratio = cfg['active_rate'] * cfg['num_clients']
+        #     cur_batch_size = int(multiply_ratio * predifined_train_batch_size)
+        #     cfg['client']['batch_size'] = {'train': cur_batch_size, 'test': 500}
+        #     # elif cfg['num_clients'] > 1:
+        #     #     cfg['client']['batch_size'] = {'train': 100, 'test': 500}
+        #     # else:
+        #     #     cfg['client']['batch_size'] = {'train': 250, 'test': 500}
+        # else:
         if cfg['num_clients'] > 10:
             cfg['client']['batch_size'] = {'train': 10, 'test': 500}
         elif cfg['num_clients'] > 1:
@@ -106,9 +120,12 @@ def process_command():
         cfg['client']['weight_decay'] = 5e-4
         cfg['client']['nesterov'] = True
         cfg['client']['num_epochs'] = cfg['local_epoch']
-
-        cfg['server']['batch_size'] = {'train': 250, 'test': 500}
-        cfg['server']['shuffle'] = {'train': True, 'test': False}
+        # if cfg['algo_mode'] == 'dynamicsgd':
+        #     cfg['client']['optimizer_name'] = 'Adam'
+        #     cfg['client']['lr'] = 1e-3
+        #     cfg['client']['betas'] = (0.9, 0.999)
+        #     cfg['client']['weight_decay'] = 5e-4
+        #     cfg['server']['scheduler_name'] = 'None'
         if cfg['num_clients'] > 10:
             cfg['server']['num_epochs'] = 800
         else:
@@ -132,5 +149,5 @@ def process_command():
         # cfg[model_name]['num_epochs'] = 400
         # cfg[model_name]['batch_size'] = {'train': 250, 'test': 500}
     
-    # print(f'cfg: {cfg}')
+    print(f'cfg: {cfg}')
     return

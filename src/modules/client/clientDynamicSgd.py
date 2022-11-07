@@ -26,8 +26,10 @@ from _typing import (
     MetricType,
     LoggerType,
     ClientType,
-    ServerType
+    ServerType,
 )
+
+from typing import Any
 
 from models.api import (
     create_model,
@@ -44,7 +46,7 @@ from data import (
 from .clientBase import ClientBase
 
 
-class ClientFedSgd(ClientBase):
+class ClientDynamicSgd(ClientBase):
 
     def __init__(
         self, 
@@ -69,7 +71,7 @@ class ClientFedSgd(ClientBase):
     ) -> dict[int, object]:
         '''
         Create clients which organized in dict type
-        For fedsgd, we only need to create one model to
+        For DynamicSgd, we only need to create one model to
         speed up the computation.
         The mathematic form of running sgd on one model is
         the same as the create mutiple clients and average
@@ -84,23 +86,36 @@ class ClientFedSgd(ClientBase):
         -------
         dict[int, object]
         '''
-        client_id = torch.arange(cfg['num_clients'])
-        clients = [None for _ in range(cfg['num_clients'])]
-        for m in range(len(clients)):
-            clients[m] = ClientFedSgd(
-                client_id=client_id[m], 
-                model=model, 
-                data_split={
-                    'train': data_split['train'][m], 
-                    'test': data_split['test'][m]
-                },
-            )
+        clients = [None]
+        clients[0] = ClientDynamicSgd(
+            client_id=0, 
+            model=model, 
+            data_split={
+                'train': data_split['train'], 
+                'test': data_split['test']
+            },
+        )
+
+        # client_id = torch.arange(cfg['num_clients'])
+        # clients = [None for _ in range(cfg['num_clients'])]
+        # for m in range(len(clients)):
+        #     clients[m] = ClientFedAvg(
+        #         client_id=client_id[m], 
+        #         model=model, 
+        #         data_split={
+        #             'train': data_split['train'][m], 
+        #             'test': data_split['test'][m]
+        #         },
+        #     )
+       
         return clients
 
 
     def train(
         self, 
         dataset: DatasetType, 
+        client_sampler: Any, #instance. A custom Sampler that 
+        # yields a list of batch indices at a time can be passed as the batch_sampler argument
         lr: int, 
         metric: MetricType, 
         logger: LoggerType,
@@ -111,7 +126,7 @@ class ClientFedSgd(ClientBase):
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
         optimizer = create_optimizer(model, 'client')
-        optimizer.load_state_dict(self.optimizer_state_dict)
+        # optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
         cur_grad_updates_num = 0
@@ -120,12 +135,13 @@ class ClientFedSgd(ClientBase):
             # number of data_loader batches = num of data points / batch_size
             data_loader = make_data_loader(
                 dataset={'train': dataset}, 
-                tag='client'
+                tag='client',
+                batch_sampler={'train': client_sampler}
             )['train'] 
 
             for i, input in enumerate(data_loader):
                 cur_grad_updates_num += 1     
-                print(f'cur_grad_updates_num: {cur_grad_updates_num}')                 
+                # print(f'cur_grad_updates_num: {cur_grad_updates_num}')                 
                 if cur_grad_updates_num == grad_updates_num + 1:
                     break
 
@@ -148,6 +164,6 @@ class ClientFedSgd(ClientBase):
                     'train', 
                     n=input_size
                 )
-        self.optimizer_state_dict = optimizer.state_dict()
+        # self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return

@@ -13,11 +13,11 @@
             "justMyCode": true,
             "args": [
                 "--control_name",
-                "CIFAR10_resnet9_10_iid_fedavg_fix_0.2-0.3-0.5_2-3-4_250",
+                "CIFAR10_resnet9_1_100_iid_fedavg_250",
             ],
         },
         {
-            "name": "FedSgd",
+            "name": "DynamicSgd",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
@@ -25,7 +25,7 @@
             "justMyCode": true,
             "args": [
                 "--control_name",
-                "CIFAR10_resnet9_1_iid_fedsgd_fix_0.2-0.3-0.5_2-3-4_10",
+                "CIFAR10_resnet9_0.1_100_non-iid-d-0.1_dynamicsgd_25",
             ],
         },
         {
@@ -73,7 +73,7 @@
             "justMyCode": true,
             "args": [
                 "--control_name",
-                "CIFAR10_resnet9_10_non-iid-d-2_dynamicfl_fix_0.5-0.5_2-1_10",
+                "CIFAR10_resnet18_100_non-iid-d-1_dynamicfl_250_fix_0.2-0.8_2-1",
             ],
         },
         {

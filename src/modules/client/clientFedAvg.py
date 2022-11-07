@@ -129,8 +129,6 @@ class ClientFedAvg(ClientBase):
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
-        
-
         cur_grad_updates_num = 0
         while cur_grad_updates_num < grad_updates_num:
             

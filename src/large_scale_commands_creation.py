@@ -47,7 +47,7 @@ control:
   model_name: resnet9
   num_clients: 100
   data_split_mode: iid / non-iid
-  algo_mode: fedsgd / fedavg / dynamicfl / dynamicsgd / fedgen / fenensemble / fedproxy
+  algo_mode: dynamicsgd / fedavg / dynamicfl / dynamicsgd / fedgen / fenensemble / fedproxy
   select_client_mode: fix / dynamic
   client_ratio: 0.2-0.3-0.5
   number_of_uploads: 2-3-4
@@ -63,7 +63,7 @@ resume_mode: 0
 verbose: False
 '''
 
-# test fedsgd / fedavg / dynamicfl / dynamicsgd / fedgen / fenensemble / fedproxy
+# test dynamicsgd / fedavg / dynamicfl / dynamicsgd / fedgen / fenensemble / fedproxy
 # test num_clients: 100 / 300
 # test datasets: CIFAR10 / CIFAR100 / FMNIST
 # test data_split_mode: iid / non-iid
@@ -99,16 +99,23 @@ def main():
         controls = []
         script_name = [['{}_classifier_fl.py'.format(run)]]
         if 'CIFAR10' in data:
-            control_name = [[['CIFAR10'], ['resnet9'], ['100'], ['iid', 'non-iid-d-0.1', 'non-iid-d-1',
-                             'non-iid-d-5', 'non-iid-l-2', 'non-iid-l-5', 'non-iid-l-7'], ['dynamicfl'], ['fix'],
-                             ['0.2-0.8', '0.5-0.5', '0.8-0.2'], ['2-1'], ['250']]]
+            control_name = [[['CIFAR10'], ['resnet18'], ['0.1'], ['100'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3',
+                             'non-iid-d-0.5', 'non-iid-d-1', 'non-iid-l-1', 'non-iid-l-2', 'non-iid-l-5', 'non-iid-l-7'], 
+                             ['dynamicfl'], ['250'], ['nonpre'], ['0.2-0.8', '0.5-0.5', '0.8-0.2'], ['2-1']]]
             CIFAR10_controls = make_controls(script_name, init_seeds, world_size, num_experiments, resume_mode, log_interval,
                                             device, control_name)
             controls.extend(CIFAR10_controls)
 
-            control_name = [[['CIFAR10'], ['resnet9'], ['100'], ['iid', 'non-iid-d-0.1', 'non-iid-d-1',
-                             'non-iid-d-5', 'non-iid-l-2', 'non-iid-l-5', 'non-iid-l-7'], ['fedavg'], ['fix'],
-                             ['0.8-0.2'], ['2-1'], ['250']]]
+            control_name = [[['CIFAR10'], ['resnet18'], ['0.1'], ['100'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3',
+                             'non-iid-d-0.5', 'non-iid-d-1', 'non-iid-l-1', 'non-iid-l-2', 'non-iid-l-5', 'non-iid-l-7'], 
+                             ['fedavg'], ['250']]]
+            CIFAR10_controls = make_controls(script_name, init_seeds, world_size, num_experiments, resume_mode, log_interval,
+                                            device, control_name)
+            controls.extend(CIFAR10_controls)
+
+            control_name = [[['CIFAR10'], ['resnet18'], ['0.1'], ['100'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3',
+                             'non-iid-d-0.5', 'non-iid-d-1', 'non-iid-l-1', 'non-iid-l-2', 'non-iid-l-5', 'non-iid-l-7'], 
+                             ['dynamicsgd'], ['250']]]
             CIFAR10_controls = make_controls(script_name, init_seeds, world_size, num_experiments, resume_mode, log_interval,
                                             device, control_name)
             controls.extend(CIFAR10_controls)

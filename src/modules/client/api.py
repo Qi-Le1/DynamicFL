@@ -2,7 +2,7 @@ from .clientDynamicFL import ClientDynamicFL
 from .clientFedAvg import ClientFedAvg
 from .clientFedGen import ClientFedGen
 from .clientFedProxy import ClientFedProxy
-from .clientFedSgd import ClientFedSgd
+from .clientDynamicSgd import ClientDynamicSgd
 
 
 __api__ = [
@@ -10,5 +10,5 @@ __api__ = [
     'ClientFedAvg',
     'ClientFedGen',
     'ClientFedProxy',
-    'ClientFedSgd',
+    'ClientDynamicSgd',
 ]

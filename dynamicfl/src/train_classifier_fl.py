@@ -163,7 +163,13 @@ def create_server(
     ServerType
     '''
     if cfg['algo_mode'] == 'dynamicfl':
-        return ServerDynamicFL(model, clients, dataset)
+        if cfg['select_client_mode'] == 'nonpre':
+            communicationMetaData = ClientDynamicFL.create_communication_meta_data()
+            return ServerDynamicFL(model, clients, dataset, communicationMetaData)
+        elif cfg['select_client_mode'] == 'fix':
+            return ServerDynamicFL(model, clients, dataset)
+        else:
+            raise ValueError('wrong select client mode for dynamicfl')
     elif cfg['algo_mode'] == 'fedavg':
         return ServerFedAvg(model, clients, dataset)
     elif cfg['algo_mode'] == 'fedensemble':

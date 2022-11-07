@@ -37,7 +37,7 @@ from modules.client.api import (
     ClientFedAvg,
     ClientFedGen,
     ClientFedProxy,
-    ClientFedSgd
+    ClientDynamicSgd
 )
 
 from modules.server.api import (
@@ -46,7 +46,7 @@ from modules.server.api import (
     ServerFedEnsemble,
     ServerFedGen,
     ServerFedProxy,
-    ServerFedSgd
+    ServerDynamicSgd
 )
 
 from utils.api import (
@@ -138,8 +138,8 @@ def create_clients(
             model=model,
             data_split=data_split
         )
-    elif cfg['algo_mode'] == 'fedsgd':
-        return ClientFedSgd.create_clients(
+    elif cfg['algo_mode'] == 'dynamicsgd':
+        return ClientDynamicSgd.create_clients(
             model=model,
             data_split=data_split
         )
@@ -163,7 +163,13 @@ def create_server(
     ServerType
     '''
     if cfg['algo_mode'] == 'dynamicfl':
-        return ServerDynamicFL(model, clients, dataset)
+        if cfg['select_client_mode'] == 'nonpre':
+            communicationMetaData = ClientDynamicFL.create_communication_meta_data()
+            return ServerDynamicFL(model, clients, dataset, communicationMetaData)
+        elif cfg['select_client_mode'] == 'fix':
+            return ServerDynamicFL(model, clients, dataset)
+        else:
+            raise ValueError('wrong select client mode for dynamicfl')
     elif cfg['algo_mode'] == 'fedavg':
         return ServerFedAvg(model, clients, dataset)
     elif cfg['algo_mode'] == 'fedensemble':
@@ -172,8 +178,8 @@ def create_server(
         return ServerFedGen(model, clients, dataset)
     elif cfg['algo_mode'] == 'fedproxy':
         return ServerFedProxy(model, clients, dataset)
-    elif cfg['algo_mode'] == 'fedsgd':
-        return ServerFedSgd(model, clients, dataset)
+    elif cfg['algo_mode'] == 'dynamicsgd':
+        return ServerDynamicSgd(model, clients, dataset)
     else:
         raise ValueError('wrong algo model')
 

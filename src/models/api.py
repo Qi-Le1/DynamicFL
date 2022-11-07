@@ -23,6 +23,8 @@ def create_model(track_running_stats=False, on_cpu=False):
     from config import cfg
     if cfg['model_name'] == 'resnet9':
         model = resnet9()
+    elif cfg['model_name'] == 'resnet18':
+        model = resnet18()
     else:
         raise ValueError('model_name is wrong')
     

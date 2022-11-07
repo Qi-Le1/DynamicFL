@@ -136,30 +136,14 @@ class ServerBase:
 
         num_active_clients = int(np.ceil(cfg['active_rate'] * cfg['num_clients']))
         selected_client_ids = torch.arange(cfg['num_clients'])[torch.randperm(cfg['num_clients'])[:num_active_clients]].tolist()
-        for i in range(num_active_clients):
-            clients[selected_client_ids[i]].active = True
+        a = set(selected_client_ids)
+        if cfg['algo_mode'] != 'dynamicsgd':
+            for i in range(num_active_clients):
+                clients[selected_client_ids[i]].active = True
         
         return selected_client_ids, num_active_clients
     
-    def combine_train_dataset(
-        self,
-        num_active_clients: int,
-        clients: dict[int, ClientType],
-        selected_client_ids: list[int],
-        dataset: DatasetType
-    ) -> DatasetType:  
-        '''
-        combine the datapoint index for selected clients
-        and return the dataset
-        '''
-        combined_datapoint_idx = []
-        for i in range(num_active_clients):
-            m = selected_client_ids[i]
-            combined_datapoint_idx += clients[m].data_split['train']
-
-        # dataset: DatasetType
-        dataset = separate_dataset(dataset, combined_datapoint_idx)
-        return dataset
+    
     
     def combine_test_dataset(
         self,

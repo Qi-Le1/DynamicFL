@@ -3,7 +3,7 @@ from .serverFedAvg import ServerFedAvg
 from .serverFedEnsemble import ServerFedEnsemble
 from .serverFedGen import ServerFedGen
 from .serverFedProxy import ServerFedProxy
-from .serverFedSgd import ServerFedSgd
+from .serverDynamicSgd import ServerDynamicSgd
 
 
 __api__ = [
@@ -12,5 +12,5 @@ __api__ = [
     'ServerFedEnsemble',
     'ServerFedGen',
     'ServerFedProxy',
-    'ServerFedSgd',
+    'ServerDynamicSgd',
 ]

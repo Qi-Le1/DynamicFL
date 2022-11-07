@@ -5,7 +5,9 @@ import datetime
 import numpy as np
 import sys
 import time
+import math
 import torch
+import random
 import torch.nn.functional as F
 import models
 from itertools import compress
@@ -50,7 +52,8 @@ class ServerDynamicFL(ServerBase):
         self, 
         model: ModelType,
         clients: dict[int, ClientType],
-        dataset: DatasetType
+        dataset: DatasetType,
+        communicationMetaData: dict=None
     ) -> None:
 
         super().__init__(dataset=dataset)
@@ -66,6 +69,7 @@ class ServerDynamicFL(ServerBase):
         # local gradient update
         self.dynamic_iterates = defaultdict(list)
         self.clients = clients
+        self.communicationMetaData = communicationMetaData
     
     def distribute_dynamic_part(
         self,
@@ -155,6 +159,28 @@ class ServerDynamicFL(ServerBase):
         self.dynamic_iterates = defaultdict(list)
         return
 
+    def distribute_local_gradient_update_list(self, selected_client_ids: list[int]):
+        '''
+        distribute local gradient update list to certain selected clients 
+        according to the client ratio
+        '''
+        temp = copy.deepcopy(selected_client_ids)
+        a = self.communicationMetaData['local_gradient_update_dict']
+        for ratio, local_gradient_update_lists in self.communicationMetaData['local_gradient_update_dict'].items():
+            for local_gradient_update_list in local_gradient_update_lists: 
+                selected_client_ids_for_ratio = random.sample(
+                    temp, 
+                    min(math.ceil(ratio * len(selected_client_ids)), len(temp))
+                )
+
+                for client_id in selected_client_ids_for_ratio:
+                    self.clients[client_id].local_gradient_update_list = local_gradient_update_list
+                
+                temp = list(set(temp) - set(selected_client_ids_for_ratio))
+
+        return
+
+
     def train(
         self,
         dataset: DatasetType,  
@@ -169,6 +195,13 @@ class ServerDynamicFL(ServerBase):
             server_model_state_dict=self.server_model_state_dict,
             clients=self.clients
         )
+
+        # overwrite the local_gradient_update_list in selected clients
+        if cfg['select_client_mode'] == 'nonpre':
+            self.distribute_local_gradient_update_list(
+                selected_client_ids=selected_client_ids
+            )
+
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
 
