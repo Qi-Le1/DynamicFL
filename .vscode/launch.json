@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Draw_Figure",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/analyze_data.py",
+            "justMyCode": true,
+            "args": [
+            ],
+        },
+        {
+            "name": "train_cnn_dynamicsgd",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true, 
+            "args": [
+                "--control_name",
+                "CIFAR10_cnn_0.1_100_non-iid-d-0.1_dynamicsgd_5",
+            ],
+        },
+        {
+            "name": "train_cnn",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_cnn_0.1_100_non-iid-l-2_dynamicfl_5_0.3-0.7_1-0_6-1_gene_noln_999999_0.01",
+            ],
+        },
+        
+    ]
+}
+
+
+
+
+

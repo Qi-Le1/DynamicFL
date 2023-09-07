@@ -1,0 +1,63 @@
+---
+# control
+
+control:
+  data_name: CIFAR10
+  model_name: cnn
+  active_rate: '0.1'
+  # learning_rate: '0.001'
+  # optimizer: 'SGD'
+  num_clients: '100'
+  # fraction of active clients per iteration
+  # active_rate: '0.1'
+  # non-iid args form: non-iid-l-2
+  data_split_mode: 'non-iid-d-0.3'
+  algo_mode: 'fedgen'
+  # maximum local gradient update
+  # max_local_gradient_update: '10'
+  local_epoch: '5'
+  # norm: 'cn'
+  # search_combination_loss: 'KL'
+  # up_to_combination_size: '1'
+  # weighted average: WA; model average: MA
+  
+  # train_batch_size: 10
+  # change_batch_size: 0
+  # scale_aggregation: 0
+  # merge_gap: '0'
+  # norm: 'bn'
+  # local_upper_bound: '5'
+  # how to select client in dynamicFL
+  # select_client_mode: 'nonpre'
+  # client ratio of assigning number of uploads
+  server_ratio: '1-0'
+  client_ratio: '1-0'
+  
+  # number of uploads
+  number_of_freq_levels: '6-1'
+  select_way: 'dyna'
+  norm: 'ln'
+  max_clip_norm: '10'
+  client_lr: '0.005'
+  grad_clip_way: 'noadap'
+  only_high_freq: '0'
+  cal_communication_cost: '0'
+  # data_prep_norm: 'bn'
+  # server_aggregation: 'WA'
+  # group_high_freq_clients: '0'
+  # reweight_sample: 0
+  # cut_low_freq: '0'
+  # grad: 'clip'
+  # data_prep_norm_test: 'bn'
+  
+  
+# experiment
+pin_memory: True
+num_workers: 0
+init_seed: 0
+num_experiments: 1
+log_interval: 0.25
+device: cpu
+world_size: 1
+resume_mode: 0
+verbose: False
