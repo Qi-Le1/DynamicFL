@@ -21,15 +21,15 @@ class SimpleCNNMNIST(nn.Module):
         super(SimpleCNNMNIST, self).__init__()
         self.conv1 = nn.Conv2d(1, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        if cfg['norm'] == 'ln':
-            self.n1 = nn.GroupNorm(1, 6)
+        # if cfg['norm'] == 'ln':
+        #     self.n1 = nn.GroupNorm(1, 6)
         # elif cfg['norm'] == 'cn':
         #     self.conv1 = Conv2dCosineNorm(1, 6, 5)
         # elif cfg['norm'] == 'pccn':
         #     self.conv1 = Conv2dPCCNorm(1, 6, 5)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        if cfg['norm'] == 'ln':
-            self.n2 = nn.GroupNorm(1, 16)
+        # if cfg['norm'] == 'ln':
+        #     self.n2 = nn.GroupNorm(1, 16)
         # for now, we hard coded this network
         # i.e. we fix the number of hidden layers i.e. 2 layers
         self.fc1 = nn.Linear(input_dim, hidden_dims[0])
@@ -51,15 +51,24 @@ class SimpleCNNMNIST(nn.Module):
             norm1, norm2 = self.n1, self.n2
 
         # x = apply_norm(x, self.conv1, norm1)
-        x = self.n1(self.conv1(x))
-        x = self.pool(F.relu(x))
-        x = self.n2(self.conv2(x))
-        # x = apply_norm(x, self.conv2, norm2)
-        x = self.pool(F.relu(x))
-        x = x.view(-1, 16 * 4 * 4)
+        # x = self.n1(self.conv1(x))
+        # x = self.pool(F.relu(x))
+        # x = self.n2(self.conv2(x))
+        # # x = apply_norm(x, self.conv2, norm2)
+        # x = self.pool(F.relu(x))
+        # x = x.view(-1, 16 * 4 * 4)
+        # x = F.relu(self.fc1(x))
+        # x = F.relu(self.fc2(x))
+        x = self.pool(F.relu(self.conv1(x)))
+        # x = self.n1(x)
+        # print('normalize', flush=True)
+        x = self.pool(F.relu(self.conv2(x)))
+        # x = self.n2(x)
+        x = x.view(-1, 16 * 5 * 5)
+
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-
+        x = self.fc3(x)
         # print('fc2 output shape', x.shape, flush=True)
         x = self.fc3(x)
         return x

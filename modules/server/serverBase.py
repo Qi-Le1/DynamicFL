@@ -48,9 +48,7 @@ class ServerBase:
         self,
         dataset
     ) -> None:
-        # dataset is train dataset
         self.fix_order_picking = -1
-        # self.dataset = dataset
         self.client_prob_distribution = {}
         self.group_clients_prob_distribution = np.array([0 for _ in range(len(dataset.classes_counts))])
         self.high_freq_clients = {}
@@ -64,11 +62,9 @@ class ServerBase:
         model_state_dict,
         batchnorm_dataset
     ) -> object:
-
         model = create_model()
         model.load_state_dict(model_state_dict)
         test_model = make_batchnorm_stats(batchnorm_dataset, model, 'server')
-        # print(f'test_mode;: {test_model.state_dict()}')
         return test_model
 
     def distribute_server_model_to_clients(
@@ -77,48 +73,10 @@ class ServerBase:
         clients
     ) -> None:
 
-        model = self.create_model(track_running_stats=False)
-        model.load_state_dict(server_model_state_dict)
-        server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         for m in range(len(clients)):
             if clients[m].active:
                 clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
-
-    # def cal_client_prob_distribution(self, dataset, data_split, client_id):
-    #     if client_id in self.client_prob_distribution:
-    #         return self.client_prob_distribution[client_id]
-
-    #     target_list = np.array([dataset[index]['target'].item() for index in data_split])
-    #     sub_prob = []
-    #     for i in range(len(dataset.classes_counts)):
-    #         sub_prob.append(sum(target_list == i)/len(target_list))
-    #     # sub_prob = [sum(target_list == i)/len(target_list) for i in range(len(dataset.classes_counts))]
-    #     # for i in range(len(sub_prob)):
-    #     #     if sub_prob[i] == 0:
-    #     #         # prob_list[i] = 1e-5
-    #     #         sub_prob[i] = 1e-8
-    #     self.client_prob_distribution[client_id] = sub_prob
-    #     return np.array(sub_prob)
-
-    # def cal_active_clients_prob_distribution(self, dataset, selected_client_ids):
-        
-    #     total_size = 0
-    #     # for client_id in selected_client_ids:
-    #     for client_id in selected_client_ids:
-    #         total_size += len(self.clients[client_id].data_split['train'])
-
-    #     self.group_clients_prob_distribution = np.array([0 for _ in range(len(dataset.classes_counts))])
-    #     for client_id in selected_client_ids:
-    #         # calculate client prob distribution
-    #         sub_prob = self.cal_client_prob_distribution(dataset, self.clients[client_id].data_split['train'], client_id)
-
-    #         # calculate active clients prob distribution
-    #         ratio = len(self.clients[client_id].data_split['train'])/total_size
-    #         sub_prob = np.array([prob*ratio for prob in sub_prob])
-    #         self.group_clients_prob_distribution = self.group_clients_prob_distribution + sub_prob
-
-    #     return None
 
 
     def add_log(
@@ -639,8 +597,11 @@ class ServerBase:
             high_freq_communication_times = max(high_freq_communication_times, len(item[0]))
             low_freq_communication_times = min(low_freq_communication_times, len(item[0]))
         return high_freq_communication_times-1, low_freq_communication_times-1
-        
-class ClientSampler(torch.utils.data.Sampler):
+
+
+
+
+class ClientDataSampler(torch.utils.data.Sampler):
     def __init__(self, 
         batch_size, 
         data_split, 
@@ -770,14 +731,7 @@ class ClientSampler(torch.utils.data.Sampler):
             raise ValueError('wrong algo mode')
         return
 
-    # if cfg['change_batch_size'] == True:
-    #     total = cfg['local_epoch'] * len(self.data_split_)
-    #     self.batch_size = math.ceil(total / self.max_local_gradient_update)
-    #     # if self.batch_size < cfg['batch_size_threshold']:
-    #     #     self.batch_size = cfg['batch_size_threshold']``
-    #     if self.batch_size < cfg['client']['batch_size']['train']:
-    #         self.batch_size = cfg['client']['batch_size']['train']
-    # print(self.max_local_gradient_update)
+
 
     def reweight_local_data_prob(self):
         start = time.time()
@@ -815,57 +769,6 @@ class ClientSampler(torch.utils.data.Sampler):
         # print('haoshi:', end-start)
         return reweight_local_data_prob
 
-
-    # def reset(self):
-    #     # self.data_split_ = copy.deepcopy(self.data_split)
-    #     self.idx = []
-    #     # if cfg['algo_mode'] == 'dynamicsgd':
-    #     #     while self.max_local_gradient_update > 0:
-    #     #         batch_idx = []
-    #     #         for client_id in self.selected_client_ids:
-    #     #             data_split_i = self.data_split_[client_id]
-    #     #             batch_size_i = min(self.batch_size, len(data_split_i))
-    #     #             chosen_eles = np.random.choice(data_split_i, size=batch_size_i, replace=True)
-    #     #             batch_idx.extend(chosen_eles)
-    #     #         self.idx.append(batch_idx)
-    #     #         self.max_local_gradient_update -= 1
-    #     if cfg['algo_mode'] == 'dynamicfl' or cfg['algo_mode'] == 'dynamicavg':
-    #         reweight_local_data_prob = None
-    #         if cfg['reweight_sample'] == True:
-    #             reweight_local_data_prob = self.reweight_local_data_prob()
-    #         while self.max_local_gradient_update > 0:
-    #             batch_idx = []
-    #             if self.client_id in self.high_freq_clients and cfg['reweight_sample'] == True:
-    #                 # reweight_local_data_prob = self.reweight_local_data_prob()
-    #                 chosen_eles = np.random.choice(self.data_split, size=self.batch_size, replace=True, p=reweight_local_data_prob)       
-    #             elif cfg['algo_mode'] == 'dynamicavg' and cfg['reweight_sample'] == True:
-    #                 chosen_eles = np.random.choice(self.data_split, size=self.batch_size, replace=True, p=reweight_local_data_prob)       
-    #             else:
-    #             # batch_size_i = min(self.batch_size, len(self.data_split_))
-    #                 chosen_eles = np.random.choice(self.data_split, size=self.batch_size, replace=True)       
-    #             batch_idx.extend(chosen_eles)
-    #             self.idx.append(batch_idx)
-    #             self.max_local_gradient_update -= 1
-    #     elif cfg['algo_mode'] == 'fedavg' or cfg['algo_mode'] == 'scaffold' \
-    #         or cfg['algo_mode'] == 'fedprox' or cfg['algo_mode'] == 'feddyn':
-    #         self.batch_size = min(self.batch_size, len(self.data_split))
-    #         cur_local_gradient_update = int(cfg['local_epoch'] * len(self.data_split) / self.batch_size)
-
-    #         if cfg['reweight_sample'] == True:
-    #             reweight_local_data_prob = self.reweight_local_data_prob()
-    #         while cur_local_gradient_update > 0:
-    #             batch_idx = []
-    #             # batch_size_i = min(self.batch_size, len(self.data_split_))
-    #             if cfg['reweight_sample'] == True:
-    #                 chosen_eles = np.random.choice(self.data_split, size=self.batch_size, replace=True, p=reweight_local_data_prob)      
-    #             else:
-    #                 chosen_eles = np.random.choice(self.data_split, size=self.batch_size, replace=True)     
-    #             batch_idx.extend(chosen_eles)
-    #             self.idx.append(batch_idx)
-    #             cur_local_gradient_update -= 1
-    #     else:
-    #         raise ValueError('wrong algo mode')
-    #     return
 
     
 

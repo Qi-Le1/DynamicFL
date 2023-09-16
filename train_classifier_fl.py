@@ -56,6 +56,7 @@ from models.api import (
 
 from modules.client.api import (
    ClientDynamicFL,
+   Communication,
    ClientFedAvg,
    ClientFedGen,
    ClientFedProx,
@@ -159,28 +160,11 @@ def main():
    return
 
 
-
-
 def create_clients(
    model: ModelType,
    data_split: dict[str, dict[int, list[int]]],
-   communicationMetaData,
    dataset=None
 ) -> dict[int, ClientType]:
-    '''
-    Create corresponding server to cfg['algo_mode']
-    
-    Parameters
-    ----------
-    model: ModelType
-
-
-
-
-    Returns
-    -------
-    ServerType
-    '''
     if cfg['algo_mode'] == 'feddyn':
        return ClientFedDyn.create_clients(
            model=model,
@@ -195,7 +179,6 @@ def create_clients(
         return ClientDynamicFL.create_clients(
             model=model,
             data_split=data_split,
-            communicationMetaData=communicationMetaData
         )
     elif cfg['algo_mode'] == 'fedavg':
         return ClientFedAvg.create_clients(
@@ -240,32 +223,11 @@ def create_server(
    model: ModelType,
    clients: dict[int, ClientType],
    dataset: DatasetType,
-   communicationMetaData
 ) -> ServerType:
-    '''
-    Create corresponding server to cfg['algo_mode']
-    
-    Parameters
-    ----------
-    model: ModelType
-
-
-
-
-    Returns
-    -------
-    ServerType
-    '''
     if cfg['algo_mode'] == 'feddyn':
         return ServerFedDyn(model, clients, dataset)
     elif cfg['algo_mode'] == 'dynamicfl':
-        # if cfg['select_client_mode'] == 'nonpre':
-            # communicationMetaData = ClientDynamicFL.create_communication_meta_data()
-        return ServerDynamicFL(model, clients, dataset, communicationMetaData)
-        # elif cfg['select_client_mode'] == 'fix':
-        #     return ServerDynamicFL(model, clients, dataset)
-        # else:
-        #     raise ValueError('wrong select client mode for dynamicfl')
+        return ServerDynamicFL(model, clients, dataset)
     elif cfg['algo_mode'] == 'fedavg':
         return ServerFedAvg(model, clients, dataset)
     elif cfg['algo_mode'] == 'fednova':
@@ -287,15 +249,6 @@ def create_server(
 
 
 
-
-
-
-
-
-
-
-
-
 def runExperiment():
    global cfg
    cfg['seed'] = int(cfg['model_tag'].split('_')[0])
@@ -304,48 +257,8 @@ def runExperiment():
    torch.cuda.manual_seed(cfg['seed'])
    dataset = fetch_dataset(cfg['data_name'])
    train_data_num = len(dataset['train'])
-   if cfg['max_local_gradient_update'] == 'no_input':
-       cfg['max_local_gradient_update'] = int(train_data_num / cfg['num_clients'] \
-       * cfg['local_epoch'] / cfg['client']['batch_size']['train'])
-   # print('\n ****')
-   # cur_id = 0
-   # print(f'cur_id: {cur_id}')
-   # temp_list_2 = []
-   # for vector in dataset['train'][cur_id]['data']:
-   #     for sub in vector:
-   #         # print(f'vector: {vector} \n')
-   #         temp = copy.deepcopy(sub)
-   #         temp = temp.tolist()
-   #         temp.sort()
-   #         temp_list_2.append(copy.deepcopy(temp))
-   # temp_list_2.sort()
-   # print(f'length: {len(temp_list_2)}')
-   # for i in range(len(temp_list_2)):
-   #     print(f'{i}: {temp_list_2[i]} \n')
-   # print('**** \n')
-
-
-
-
-   # print('\n ****')
-   # cur_id = 0
-   # print(f'cur_id: {cur_id}')
-   # temp_list_3 = []
-   # for vector in dataset['train'][cur_id]['data']:
-   #     for sub in vector:
-   #         # print(f'vector: {vector} \n')
-   #         temp = copy.deepcopy(sub)
-   #         temp = temp.tolist()
-   #         temp.sort()
-   #         temp_list_3.append(copy.deepcopy(temp))
-   # temp_list_3.sort()
-   # print(f'length: {len(temp_list_3)}')
-   # for i in range(len(temp_list_3)):
-   #     print(f'{i}: {temp_list_3[i]} \n')
-   # print('**** \n')
-
-
-
+   cfg['max_local_gradient_update'] = int(train_data_num / cfg['num_clients'] \
+        * cfg['local_epoch'] / cfg['client']['batch_size']['train'])
 
    process_dataset(dataset)
    # data_loader = make_data_loader(dataset, 'global')
@@ -357,33 +270,28 @@ def runExperiment():
    metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
    result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
 
-
-
-
    best_test_acc = 0
    if result is None:
        last_global_epoch = 1
-       communicationMetaData = None
-       if cfg['algo_mode'] == 'dynamicfl':
-           client_ids = torch.arange(cfg['num_clients'])
-           communicationMetaData = ClientDynamicFL.create_communication_meta_data(client_ids=client_ids)
-           print(f'communicationMetaData, {communicationMetaData}')
+
        clients = create_clients(
            model=model,
            data_split=data_split,
-           communicationMetaData=communicationMetaData,
            dataset=dataset['train']
        )
        server = create_server(
            model=model,
            clients=clients,
            dataset=copy.deepcopy(dataset['train']),
-           communicationMetaData=communicationMetaData
        )
-       # if cfg['algo_mode'] == 'fedgen':
-       #     for client in clients:
-       #         client.generative_model = server.generative_model
-             
+
+       if cfg['algo_mode'] == 'dynamicfl':
+           client_ids = torch.arange(cfg['num_clients'])
+           communication_info = Communication(client_ids)
+           for client_id in client_ids:
+               clients[client_id].freq_interval = communication_info.client_to_freq_interval[client_id]
+               clients[client_id].communication_cost_budget = communication_info.client_to_communication_cost_budget[client_id]
+               
        logger = make_logger(os.path.join('output', 'runs', 'train_{}'.format(cfg['model_tag'])))
    else:
        print('1')
@@ -397,9 +305,6 @@ def runExperiment():
        logger = result['logger']
 
 
-
-
- 
    print(f'last_global_epoch: {last_global_epoch}')
    print(f"end: {cfg['server']['num_epochs'] + 1}")
    # train_batchnorm_dataset = make_batchnorm_dataset(dataset)

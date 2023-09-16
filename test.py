@@ -58,3 +58,30 @@ iterate(a)
 iterate(a)
 iterate(a)
 iterate(a)
+
+from torch.utils.data import DataLoader, Dataset, Sampler
+
+class SimpleDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+data = [i for i in range(100, 200)]
+dataset = SimpleDataset(data)
+
+dataloader = DataLoader(dataset, batch_size=1, sampler=ClientSampler())
+
+for i, input in enumerate(dataloader):
+    print(i, input, '\n')
+    if i == 10:
+        break
+
+for i, input in enumerate(dataloader):
+    print(i, input, '\n')
+    if i == 10:
+        break

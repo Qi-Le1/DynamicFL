@@ -1,4 +1,4 @@
-from .clientDynamicFL import ClientDynamicFL
+from .clientDynamicFL import ClientDynamicFL, Communication
 from .clientFedAvg import ClientFedAvg
 from .clientFedGen import ClientFedGen
 from .clientFedProx import ClientFedProx
@@ -10,6 +10,7 @@ from .clientFedNova import ClientFedNova
 
 __api__ = [
     'ClientDynamicFL',
+    'Communication',
     'ClientFedAvg',
     'ClientFedGen',
     'ClientFedProx',
