@@ -98,31 +98,6 @@ class ClientFedAvg(ClientBase):
         metric: MetricType, 
         logger: LoggerType,
     ) -> None:
-        '''
-        data_loader = make_data_loader({'train': dataset}, 'client')['train']
-        model = eval('models.{}().to(cfg["device"])'.format(cfg['model_name']))
-        model.apply(lambda m: models.make_batchnorm(m, momentum=None, track_running_stats=False))
-        model.load_state_dict(self.model_state_dict, strict=False)
-        self.optimizer_state_dict['param_groups'][0]['lr'] = lr
-        optimizer = create_optimizer(model, 'local')
-        optimizer.load_state_dict(self.optimizer_state_dict)
-        model.train(True)
-        model.train(True)
-        for epoch in range(1, cfg['local']['num_epochs'] + 1):
-            for i, input in enumerate(data_loader):
-                input = collate(input)
-                input_size = input['data'].size(0)
-                input = to_device(input, cfg['device'])
-                optimizer.zero_grad()
-                output = model(input)
-                output['loss'].backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-                optimizer.step()
-                evaluation = metric.evaluate(metric.metric_name['train'], input, output)
-                logger.append(evaluation, 'train', n=input_size)
-        self.optimizer_state_dict = optimizer.state_dict()
-        self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-        '''
         model = create_model(track_running_stats=False, on_cpu=False)
         model.load_state_dict(self.model_state_dict, strict=False)
         self.optimizer_state_dict['param_groups'][0]['lr'] = lr
@@ -130,27 +105,6 @@ class ClientFedAvg(ClientBase):
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
 
-        # if cfg['merge_gap'] == True:
-        #     new_optimizer_state_dict = super().update_optimizer_state_dict(
-        #         client_model_state_dict=self.prev_model_state_dict,
-        #         client_optimizer_state_dict=copy.deepcopy(self.optimizer_state_dict),
-        #         client_optimizer_lr=lr,
-        #         server_model_state_dict=copy.deepcopy(self.model_state_dict)
-        #     )
-        #     # new_optimizer_state_dict = to_device(new_optimizer_state_dict, cfg['device'])
-        #     optimizer.load_state_dict(new_optimizer_state_dict)
-        
-        # Regenerate data loader if number of data_loader batches < grad_interval
-        # number of data_loader batches = num of data points / batch_size
-        # data_loader = make_data_loader(
-        #     dataset={'train': dataset}, 
-        #     tag='client'
-        # )['train'] 
-        # print('-----')
-        # ceshi = 0
-        # for local_epoch in range(1, cfg['local_epoch']+1):
-            
-            # print(f'clientFedAvg: {cur_grad_updates_num}')
         for i, input in enumerate(data_loader):
 
             input = collate(input)

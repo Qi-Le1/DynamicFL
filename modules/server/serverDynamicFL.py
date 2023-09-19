@@ -65,7 +65,8 @@ class ServerDynamicFL(ServerBase):
         self.server_optimizer_state_dict = server_optimizer.state_dict()
 
         self.clients = clients
-        self.global_labels_distribution = super().get_global_labels_distribution(dataset)
+        self.dataset = dataset
+        self.data_loader_list = super().generate_data_loader_list()
 
         self.dynamic_uploaded_clients = defaultdict(list)
         self.dynamic_iterates = defaultdict(list)
@@ -142,9 +143,10 @@ class ServerDynamicFL(ServerBase):
             del self.dynamic_iterates[local_gradent_update]
         return
 
-    def update_server_model(self, clients: dict[int, ClientType]) -> None:
+    def update_server_model(self, clients: dict[int, ClientType], selected_client_ids) -> None:
         with torch.no_grad():
-            valid_clients = [clients[i] for i in range(len(clients)) if clients[i].active]
+            # valid_clients = [clients[i] for i in range(len(clients)) if clients[i].active]
+            valid_clients = [client_id for client_id in selected_client_ids]
             if valid_clients:
                 model = super().create_model(track_running_stats=False, on_cpu=True)
                 model.load_state_dict(self.server_model_state_dict)
@@ -173,74 +175,12 @@ class ServerDynamicFL(ServerBase):
                 server_optimizer.step()
                 self.server_optimizer_state_dict = server_optimizer.state_dict()
                 self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
-            for i in range(len(clients)):
-                clients[i].active = False
+            # for i in range(len(clients)):
+            #     clients[i].active = False
         
         self.dynamic_uploaded_clients = defaultdict(list)
         self.dynamic_iterates = defaultdict(list)
         return
-
-
-    def cal_genetic_dist_func(self, *args):
-  
-        clients_indices_indicator = args[0]
-        # print(f'clients_indices_indicator: {clients_indices_indicator}')
-        comb_prob = np.array([0 for _ in range(len(self.dataset.classes_counts))])
-        total_size = 0
-        for i in range(len(clients_indices_indicator)):
-            if int(clients_indices_indicator[i]) == 1:
-                client_id = self.selected_client_ids[i]
-                total_size += len(self.clients[client_id].data_split['train'])
-
-        for i in range(len(clients_indices_indicator)):
-            if int(clients_indices_indicator[i]) == 1:
-                client_id = self.selected_client_ids[i]
-                sub_prob = super().cal_prob_distribution(self.dataset, self.clients[client_id].data_split['train'], client_id)
-
-                ratio = len(self.clients[client_id].data_split['train'])/total_size
-                sub_prob = np.array([prob*ratio for prob in sub_prob])
-                comb_prob = comb_prob + sub_prob
-
-        res = None
-        if self.genetic_metric_indicator == 'KL':
-            res = super().cal_KL_divergence(comb_prob, self.global_labels_distribution)
-        elif self.genetic_metric_indicator == 'QL':
-            res = super().cal_QL(comb_prob, self.global_labels_distribution)
-
-        # if self.update_min_criteria(KL_divergence, self.min_KL, clients_indices_indicator, self.min_clients_list):
-        #     # self.min_clients_num = sum(clients_indices_indicator)
-        #     self.min_clients_list = copy.deepcopy(clients_indices_indicator)
-        #     self.min_KL = KL_divergence
-        return res
-
-    def genetic(self, num_clients, dataset, selected_client_ids, distance_type):
-        self.dataset = dataset
-        self.selected_client_ids = selected_client_ids
-        lb = [0 for _ in range(len(selected_client_ids))]
-        ub = [1 for _ in range(len(selected_client_ids))]
-        precision = [1 for _ in range(len(selected_client_ids))]
-        # constraint_ueq = [
-        #     lambda x: 1 - sum(x),
-        #     lambda x: sum(x) - 3
-        #     # lambda x: self.cal_KL_func(x) - threshold
-        # ]
-        constraint_eq = [
-            lambda x: num_clients - sum(x)
-        ]
-        self.genetic_metric_indicator = distance_type
-
-        ga = GA(func=self.cal_genetic_dist_func, n_dim=len(selected_client_ids), size_pop=50, max_iter=200, prob_mut=0.001, 
-                lb=lb, ub=ub, constraint_eq=constraint_eq, precision=precision)
-        best_x, self.min_KL = ga.run()
-        # best_x = [int(item) for item in best_x]
-
-        # best_x = selected_client_ids * best_x
-        res = []
-        for i in range(len(best_x)):
-            item = best_x[i]
-            if int(item) == 1:
-                res.append(selected_client_ids[i])
-        return self.min_KL[0], res
 
     def distribute_local_gradient_update_list(self, selected_client_ids: list[int], dataset, logger):
         '''
@@ -392,38 +332,50 @@ class ServerDynamicFL(ServerBase):
         
         return
 
+    def distribute_server_model_to_clients(
+        self
+    ):
+        return
+    
+    def distribute_server_model_to_clients(
+        self,
+        server_model_state_dict,
+        clients
+    ) -> None:
+
+        for m in range(len(clients)):
+            if clients[m].active:
+                clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
+        return
+    
     def train(
         self,
         dataset: DatasetType,  
         optimizer: OptimizerType, 
         metric: MetricType, 
         logger: LoggerType, 
-        global_epoch: int
+        global_epoch: int,
     ):
         logger.safe(True)
         selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)
         super().distribute_server_model_to_clients(
             server_model_state_dict=self.server_model_state_dict,
-            clients=self.clients
+            client_ids=torch.arange(cfg['num_clients'])
         )
 
-        self.distribute_local_gradient_update_list(
-            selected_client_ids=selected_client_ids,
-            dataset=dataset,
-            logger=logger
-        )
+
         data_loader_list = []
         client_sampler_list = []
-        for client_id in selected_client_ids:
+        client_ids = torch.arange(cfg['num_clients'])
+        for client_id in client_ids:
             client_sampler = ClientSampler(
                 batch_size=cfg['client']['batch_size']['train'], 
                 data_split=copy.deepcopy(self.clients[client_id].data_split['train']),
                 client_id=client_id,
                 max_local_gradient_update=cfg['max_local_gradient_update'],
-                high_freq_clients=self.high_freq_clients,
             )
             client_sampler_list.append(client_sampler)
-            self.clients[client_id].batch_size = client_sampler.batch_size
+        
             data_loader_list.append(make_data_loader(
                 dataset={'train': dataset}, 
                 tag='client',
@@ -432,17 +384,24 @@ class ServerDynamicFL(ServerBase):
 
         start_time = time.time()
         lr = optimizer.param_groups[0]['lr']
-        for local_gradient_update in range(1, cfg['max_local_gradient_update'] + 1):
+        selected_client_ids = None
+        client_selector = ClientSelector()
+        for local_gradient_update in range(cfg['max_local_gradient_update']):
             # print(f'local_gradient_update: {local_gradient_update}')
             # update the server model parameter using self.dynamic_iterates[target_gradent_update]
             self.update_dynamic_part(local_gradent_update=local_gradient_update)
             # Distribute the new server parameter update by dynamicFL to the clients
             # that have uploaded their local parameters to local_gradient_update
             
-            # TODO: reselect clients
-
             self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
-                
+            
+            selected_client_ids, new_client_ids = client_selector.select_clients(
+                local_gradient_update=local_gradient_update,
+                prev_selected_client_ids=selected_client_ids
+            )
+            
+            self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
+            
             for i in range(num_active_clients):
                 m = selected_client_ids[i]
                 if not self.is_local_gradient_update_valid(
@@ -483,35 +442,8 @@ class ServerDynamicFL(ServerBase):
         
         logger.safe(False)
         logger.reset()
-        self.update_server_model(clients=self.clients)
+        self.update_server_model(clients=self.clients, selected_client_ids=selected_client_ids)
         return
-
-    def cal_gradient_updates_num(
-        self,
-        local_gradient_update: int,
-        local_gradient_update_list: list[int]
-    ) -> int:
-        '''
-        Calculate the local gradient update interval until next update, which
-        means current client will update gradient for gradient update num times.
-
-        If local_gradient_update is the last ele in the local_gradient_update_list,
-        then we update its gradient to max_local_gradient_update
-        '''
-        index = local_gradient_update_list.index(local_gradient_update)
-        if index == len(local_gradient_update_list) - 1:
-            return 0
-        return local_gradient_update_list[index+1] - local_gradient_update
-
-    def is_local_gradient_update_valid(
-        self,
-        local_gradient_update: int,
-        local_gradient_update_list: list[int]
-    ) -> bool:
-        '''
-        Check if local gradient update is in local gradient update list
-        '''
-        return local_gradient_update in local_gradient_update_list
 
     def evaluate_trained_model(
         self,

@@ -80,7 +80,8 @@ from modules.server.api import (
    ServerDynamicAvg,
    ServerScaffold,
    ServerFedDyn,
-   ServerFedNova
+   ServerFedNova,
+   ClientSelector
 )
 
 
@@ -269,8 +270,8 @@ def runExperiment():
    data_split = split_dataset(dataset, cfg['num_clients'], cfg['data_split_mode'])
    metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
    result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
+   client_ids = torch.arange(cfg['num_clients'])
 
-   best_test_acc = 0
    if result is None:
        last_global_epoch = 1
 
@@ -286,7 +287,7 @@ def runExperiment():
        )
 
        if cfg['algo_mode'] == 'dynamicfl':
-           client_ids = torch.arange(cfg['num_clients'])
+           
            communication_info = Communication(client_ids)
            for client_id in client_ids:
                clients[client_id].freq_interval = communication_info.client_to_freq_interval[client_id]
@@ -304,7 +305,13 @@ def runExperiment():
        data_split = result['data_split']
        logger = result['logger']
 
-
+   client_selector = ClientSelector(
+       client_ids=client_ids,
+       clients=clients,
+       dataset=dataset['train'],
+       data_split=data_split,
+       communication_info=communication_info
+   )
    print(f'last_global_epoch: {last_global_epoch}')
    print(f"end: {cfg['server']['num_epochs'] + 1}")
    # train_batchnorm_dataset = make_batchnorm_dataset(dataset)
