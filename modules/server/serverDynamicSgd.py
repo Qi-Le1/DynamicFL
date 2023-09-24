@@ -28,7 +28,7 @@ from models.api import (
     make_batchnorm
 )
 from optimizer.api import create_optimizer
-from .serverBase import ServerBase, ClientSampler
+from .serverBase import ServerBase
 
 from data import (
     separate_dataset,

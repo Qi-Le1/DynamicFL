@@ -27,7 +27,7 @@
             ],
         },
         {
-            "name": "train_cnn",
+            "name": "train_cnn_dynamicfl_noresample",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
@@ -35,7 +35,19 @@
             "justMyCode": true,
             "args": [
                 "--control_name",
-                "CIFAR10_cnn_0.1_100_non-iid-l-2_dynamicfl_5_0.3-0.7_1-0_6-1_gene_noln_999999_0.01",
+                "CIFAR10_cnn_0.1_100_non-iid-l-2_dynamicfl_5_1-0_0.3-0.7_6-1_gene_0_0_0",
+            ],
+        },
+        {
+            "name": "train_cnn_dynamicfl_resample",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/train_classifier_fl.py",
+            "justMyCode": true,
+            "args": [
+                "--control_name",
+                "CIFAR10_cnn_0.1_100_non-iid-l-2_dynamicfl_5_1-0_0.3-0.7_6-1_gene_1_0_0",
             ],
         },
         

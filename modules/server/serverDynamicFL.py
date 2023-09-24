@@ -35,8 +35,13 @@ from utils.api import (
     to_device,  
     collate
 )
+
+from ..clientSelector import (
+    ClientSelector,
+)
+
 from optimizer.api import create_optimizer
-from .serverBase import ServerBase, ClientSampler
+from .serverBase import ServerBase
 from .serverCombinationSearch import ServerCombinationSearch
 
 from data import (
@@ -56,9 +61,9 @@ class ServerDynamicFL(ServerBase):
         model: ModelType,
         clients: dict[int, ClientType],
         dataset: DatasetType,
-        communicatoin_info
+        communication_info
     ) -> None:
-        ServerBase.__init__(self, dataset=dataset)
+        ServerBase.__init__(self, dataset=dataset, clients=clients)
 
         self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         server_optimizer = create_optimizer(model, 'server')
@@ -66,16 +71,16 @@ class ServerDynamicFL(ServerBase):
 
         self.clients = clients
         self.dataset = dataset
-        self.data_loader_list = super().generate_data_loader_list()
+        # self.data_loader_list = super().generate_data_loader_list()
 
         self.dynamic_uploaded_clients = defaultdict(list)
         self.dynamic_iterates = defaultdict(list)
         
-        self.communicaton_info = communicatoin_info
+        self.communication_info = communication_info
         self.high_freq_clients = None
         self.low_freq_clients = None
-        self.server_communication_cost_budget = communicatoin_info.server_communication_cost_budget
-        self.server_high_freq_communication_cost_budget = communicatoin_info.server_high_freq_communication_cost_budget
+        self.server_communication_cost_budget = communication_info.server_communication_cost_budget
+        self.server_high_freq_communication_cost_budget = communication_info.server_high_freq_communication_cost_budget
         
 
     def distribute_dynamic_part(
@@ -146,7 +151,7 @@ class ServerDynamicFL(ServerBase):
     def update_server_model(self, clients: dict[int, ClientType], selected_client_ids) -> None:
         with torch.no_grad():
             # valid_clients = [clients[i] for i in range(len(clients)) if clients[i].active]
-            valid_clients = [client_id for client_id in selected_client_ids]
+            valid_clients = [self.clients[client_id] for client_id in selected_client_ids]
             if valid_clients:
                 model = super().create_model(track_running_stats=False, on_cpu=True)
                 model.load_state_dict(self.server_model_state_dict)
@@ -181,6 +186,123 @@ class ServerDynamicFL(ServerBase):
         self.dynamic_uploaded_clients = defaultdict(list)
         self.dynamic_iterates = defaultdict(list)
         return
+
+    
+    def is_client_active(
+        self,
+        local_gradient_update,
+        client_id
+    ):
+        if local_gradient_update == 0:
+            return True
+        
+        if local_gradient_update % cfg['high_freq_interval'] == 0 and self.clients[client_id].freq_interval == cfg['high_freq_interval']:
+            return True
+        elif local_gradient_update % cfg['low_freq_interval'] == 0 and self.clients[client_id].freq_interval == cfg['low_freq_interval']:
+            return True
+        else:
+            return False
+        
+    def train(
+        self,
+        dataset: DatasetType,  
+        optimizer: OptimizerType, 
+        metric: MetricType, 
+        logger: LoggerType, 
+        global_epoch: int,
+        data_split,
+    ):
+        logger.safe(True)
+
+        super().distribute_server_model_to_clients(
+            server_model_state_dict=self.server_model_state_dict,
+            client_ids=np.arange(cfg['num_clients'])
+        )
+
+        start_time = time.time()
+        lr = optimizer.param_groups[0]['lr']
+        selected_client_ids = []
+        client_selector = ClientSelector(
+            client_ids=np.arange(cfg['num_clients']),
+            clients=self.clients,
+            dataset=dataset,
+            data_split=data_split,
+            communication_info=self.communication_info
+        )
+        for local_gradient_update in range(cfg['max_local_gradient_update']):            
+            self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
+            
+            selected_client_ids, new_selected_client_ids = client_selector.select_clients(
+                local_gradient_update=local_gradient_update,
+                prev_selected_client_ids=selected_client_ids,
+                clients=self.clients
+            )
+            
+            if len(selected_client_ids) != cfg['num_active_clients']:
+                print(f'local_gradient_update: {local_gradient_update}, selected_client_ids length wrong: {len(selected_client_ids)}')
+            super().distribute_server_model_to_clients(
+                server_model_state_dict=self.server_model_state_dict,
+                client_ids=new_selected_client_ids
+            )
+            # print(f'local_gradient_update: {local_gradient_update}, selected_client_ids: {len(selected_client_ids)}')
+            for i in range(cfg['num_active_clients']):
+                client_id = selected_client_ids[i]
+                
+                # if local_gradient_update % cfg['high_freq_interval'] == 0 or \
+                #     local_gradient_update % cfg['low_freq_interval'] == 0:
+                
+                if self.is_client_active(local_gradient_update, client_id):
+                    # print(f'local_gradient_update: {local_gradient_update}', client_id, self.clients[client_id].freq_interval, flush=True)
+                    grad_updates_num = self.clients[client_id].freq_interval
+                    self.clients[client_id].train(
+                        data_loader=self.data_loader_list[client_id], 
+                        lr=lr, 
+                        metric=metric, 
+                        logger=logger,
+                        grad_updates_num=min(grad_updates_num, cfg['max_local_gradient_update'])
+                    )
+
+                    # upload the new local model parameter to the self.dynamic_iterates
+                    self.upload_dynamic_part(
+                        target_gradent_update=local_gradient_update+grad_updates_num,
+                        cur_client_id=client_id
+                    )
+                
+            super().add_dynamicFL_log(
+                local_gradient_update=local_gradient_update,
+                start_time=start_time,
+                global_epoch=global_epoch,
+                lr=lr,
+                metric=metric,
+                logger=logger,
+            )
+        
+        logger.safe(False)
+        logger.reset()
+        self.update_server_model(clients=self.clients, selected_client_ids=selected_client_ids)
+        return
+
+    def evaluate_trained_model(
+        self,
+        dataset,
+        batchnorm_dataset,
+        logger,
+        metric,
+        global_epoch
+    ):  
+        return super().evaluate_trained_model(
+            dataset=dataset,
+            batchnorm_dataset=batchnorm_dataset,
+            logger=logger,
+            metric=metric,
+            global_epoch=global_epoch,
+            server_model_state_dict=self.server_model_state_dict
+        )
+
+
+
+
+
 
     def distribute_local_gradient_update_list(self, selected_client_ids: list[int], dataset, logger):
         '''
@@ -331,135 +453,3 @@ class ServerDynamicFL(ServerBase):
 
         
         return
-
-    def distribute_server_model_to_clients(
-        self
-    ):
-        return
-    
-    def distribute_server_model_to_clients(
-        self,
-        server_model_state_dict,
-        clients
-    ) -> None:
-
-        for m in range(len(clients)):
-            if clients[m].active:
-                clients[m].model_state_dict = copy.deepcopy(server_model_state_dict)
-        return
-    
-    def train(
-        self,
-        dataset: DatasetType,  
-        optimizer: OptimizerType, 
-        metric: MetricType, 
-        logger: LoggerType, 
-        global_epoch: int,
-    ):
-        logger.safe(True)
-        selected_client_ids, num_active_clients = super().select_clients(clients=self.clients)
-        super().distribute_server_model_to_clients(
-            server_model_state_dict=self.server_model_state_dict,
-            client_ids=torch.arange(cfg['num_clients'])
-        )
-
-
-        data_loader_list = []
-        client_sampler_list = []
-        client_ids = torch.arange(cfg['num_clients'])
-        for client_id in client_ids:
-            client_sampler = ClientSampler(
-                batch_size=cfg['client']['batch_size']['train'], 
-                data_split=copy.deepcopy(self.clients[client_id].data_split['train']),
-                client_id=client_id,
-                max_local_gradient_update=cfg['max_local_gradient_update'],
-            )
-            client_sampler_list.append(client_sampler)
-        
-            data_loader_list.append(make_data_loader(
-                dataset={'train': dataset}, 
-                tag='client',
-                batch_sampler={'train': client_sampler}
-            )['train']) 
-
-        start_time = time.time()
-        lr = optimizer.param_groups[0]['lr']
-        selected_client_ids = None
-        client_selector = ClientSelector()
-        for local_gradient_update in range(cfg['max_local_gradient_update']):
-            # print(f'local_gradient_update: {local_gradient_update}')
-            # update the server model parameter using self.dynamic_iterates[target_gradent_update]
-            self.update_dynamic_part(local_gradent_update=local_gradient_update)
-            # Distribute the new server parameter update by dynamicFL to the clients
-            # that have uploaded their local parameters to local_gradient_update
-            
-            self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
-            
-            selected_client_ids, new_client_ids = client_selector.select_clients(
-                local_gradient_update=local_gradient_update,
-                prev_selected_client_ids=selected_client_ids
-            )
-            
-            self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
-            
-            for i in range(num_active_clients):
-                m = selected_client_ids[i]
-                if not self.is_local_gradient_update_valid(
-                    local_gradient_update=local_gradient_update,
-                    local_gradient_update_list=self.clients[m].local_gradient_update_list
-                ):
-                    continue
-
-                if 
-                grad_updates_num = self.cal_gradient_updates_num(
-                    local_gradient_update=local_gradient_update,
-                    local_gradient_update_list=self.clients[m].local_gradient_update_list
-                )
-                
-                self.clients[m].train(
-                    client_sampler=client_sampler_list[i],
-                    data_loader=data_loader_list[i], 
-                    lr=lr, 
-                    metric=metric, 
-                    logger=logger,
-                    grad_updates_num=grad_updates_num
-                )
-
-                # upload the new local model parameter to the self.dynamic_iterates
-                self.upload_dynamic_part(
-                    target_gradent_update=local_gradient_update+grad_updates_num,
-                    cur_client_id=m
-                )
-                
-            super().add_dynamicFL_log(
-                local_gradient_update=local_gradient_update,
-                start_time=start_time,
-                global_epoch=global_epoch,
-                lr=lr,
-                metric=metric,
-                logger=logger,
-            )
-        
-        logger.safe(False)
-        logger.reset()
-        self.update_server_model(clients=self.clients, selected_client_ids=selected_client_ids)
-        return
-
-    def evaluate_trained_model(
-        self,
-        dataset,
-        batchnorm_dataset,
-        logger,
-        metric,
-        global_epoch
-    ):  
-        return super().evaluate_trained_model(
-            dataset=dataset,
-            batchnorm_dataset=batchnorm_dataset,
-            logger=logger,
-            metric=metric,
-            global_epoch=global_epoch,
-            server_model_state_dict=self.server_model_state_dict
-        )
-
-        

@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-
-
-
 import argparse
 import datetime
-
-
-
-
 import os
 import copy
 import shutil
@@ -17,16 +10,10 @@ import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
 
-
-
-
 from config import (
    cfg,
    process_args
 )
-
-
-
 
 from data import (
    fetch_dataset,
@@ -37,13 +24,7 @@ from data import (
    make_batchnorm_stats
 )
 
-
-
-
 from metrics import Metric
-
-
-
 
 from models.api import (
    # CNN,
@@ -51,12 +32,8 @@ from models.api import (
    make_batchnorm
 )
 
-
-
-
 from modules.client.api import (
    ClientDynamicFL,
-   Communication,
    ClientFedAvg,
    ClientFedGen,
    ClientFedProx,
@@ -66,9 +43,6 @@ from modules.client.api import (
    ClientFedDyn,
    ClientFedNova
 )
-
-
-
 
 from modules.server.api import (
    ServerDynamicFL,
@@ -81,12 +55,14 @@ from modules.server.api import (
    ServerScaffold,
    ServerFedDyn,
    ServerFedNova,
-   ClientSelector
 )
 
-
-
-
+from modules.api import (
+    ClientDataSampler,
+    ClientSelector,
+    Communication
+)
+    
 from utils.api import (
    save,
    to_device,
@@ -96,13 +72,9 @@ from utils.api import (
    collate
 )
 
-
-
+from data import DataLoaderWrapper
 
 from models.api import create_model
-
-
-
 
 from _typing import (
    DatasetType,
@@ -116,19 +88,13 @@ from _typing import (
 )
 
 
-
-
 from logger import Logger, make_logger
-
-
 
 
 from optimizer.api import (
    create_optimizer,
    create_scheduler
 )
-
-
 
 
 cudnn.benchmark = True
@@ -141,17 +107,9 @@ process_args(args)
 
 
 
-
-
-
-
-
 def main():
    process_command()
    seeds = list(range(cfg['init_seed'], cfg['init_seed'] + cfg['num_experiments']))
-
-
-
 
    for i in range(cfg['num_experiments']):
        model_tag_list = [str(seeds[i]), cfg['control_name']]
@@ -224,11 +182,12 @@ def create_server(
    model: ModelType,
    clients: dict[int, ClientType],
    dataset: DatasetType,
+   communication_info
 ) -> ServerType:
     if cfg['algo_mode'] == 'feddyn':
         return ServerFedDyn(model, clients, dataset)
     elif cfg['algo_mode'] == 'dynamicfl':
-        return ServerDynamicFL(model, clients, dataset)
+        return ServerDynamicFL(model, clients, dataset, communication_info)
     elif cfg['algo_mode'] == 'fedavg':
         return ServerFedAvg(model, clients, dataset)
     elif cfg['algo_mode'] == 'fednova':
@@ -249,163 +208,156 @@ def create_server(
         raise ValueError('wrong algo model')
 
 
-
 def runExperiment():
-   global cfg
-   cfg['seed'] = int(cfg['model_tag'].split('_')[0])
-   torch.manual_seed(cfg['seed'])
-   # torch.set_default_dtype(torch.float64)
-   torch.cuda.manual_seed(cfg['seed'])
-   dataset = fetch_dataset(cfg['data_name'])
-   train_data_num = len(dataset['train'])
-   cfg['max_local_gradient_update'] = int(train_data_num / cfg['num_clients'] \
-        * cfg['local_epoch'] / cfg['client']['batch_size']['train'])
+    global cfg
+    cfg['seed'] = int(cfg['model_tag'].split('_')[0])
+    torch.manual_seed(cfg['seed'])
+    torch.cuda.manual_seed(cfg['seed'])
+    dataset = fetch_dataset(cfg['data_name'])
+    train_data_num = len(dataset['train'])
+    cfg['max_local_gradient_update'] = int(train_data_num / cfg['num_clients'] \
+            * cfg['local_epoch'] / cfg['client']['batch_size']['train'])
 
-   process_dataset(dataset)
-   # data_loader = make_data_loader(dataset, 'global')
-   model = create_model()
-   optimizer = create_optimizer(model, 'client')
-   scheduler = create_scheduler(optimizer, 'server')
-   batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
-   data_split = split_dataset(dataset, cfg['num_clients'], cfg['data_split_mode'])
-   metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
-   result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
-   client_ids = torch.arange(cfg['num_clients'])
+    process_dataset(dataset)
+    model = create_model()
+    optimizer = create_optimizer(model, 'client')
+    scheduler = create_scheduler(optimizer, 'server')
+    batchnorm_dataset = make_batchnorm_dataset(dataset['train'])
+    data_split = split_dataset(dataset, cfg['num_clients'], cfg['data_split_mode'])
+    metric = Metric({'train': ['Loss', 'Accuracy'], 'test': ['Loss', 'Accuracy']})
+    result = resume(cfg['model_tag'], resume_mode=cfg['resume_mode'])
+    client_ids = np.arange(cfg['num_clients'])
 
-   if result is None:
-       last_global_epoch = 1
+    if result is None:
+        last_global_epoch = 1
 
-       clients = create_clients(
-           model=model,
-           data_split=data_split,
-           dataset=dataset['train']
-       )
-       server = create_server(
-           model=model,
-           clients=clients,
-           dataset=copy.deepcopy(dataset['train']),
-       )
+        clients = create_clients(
+            model=model,
+            data_split=data_split,
+            dataset=dataset['train']
+        )
 
-       if cfg['algo_mode'] == 'dynamicfl':
-           
-           communication_info = Communication(client_ids)
-           for client_id in client_ids:
-               clients[client_id].freq_interval = communication_info.client_to_freq_interval[client_id]
-               clients[client_id].communication_cost_budget = communication_info.client_to_communication_cost_budget[client_id]
-               
-       logger = make_logger(os.path.join('output', 'runs', 'train_{}'.format(cfg['model_tag'])))
-   else:
-       print('1')
-       cfg = result['cfg']
-       last_global_epoch = result['epoch']
-       server = result['server']
-       clients = result['clients']
-       optimizer.load_state_dict(result['optimizer_state_dict'])
-       scheduler.load_state_dict(result['scheduler_state_dict'])
-       data_split = result['data_split']
-       logger = result['logger']
+        communication_info = None
+        if cfg['algo_mode'] == 'dynamicfl':
+            communication_info = Communication(client_ids)
+            for client_id in client_ids:
+                clients[client_id].freq_interval = communication_info.client_to_freq_interval[client_id]
+                clients[client_id].communication_cost = communication_info.client_to_communication_cost[client_id]
+                clients[client_id].communication_cost_budget = communication_info.client_to_communication_cost_budget[client_id]
 
-   client_selector = ClientSelector(
-       client_ids=client_ids,
-       clients=clients,
-       dataset=dataset['train'],
-       data_split=data_split,
-       communication_info=communication_info
-   )
-   print(f'last_global_epoch: {last_global_epoch}')
-   print(f"end: {cfg['server']['num_epochs'] + 1}")
-   # train_batchnorm_dataset = make_batchnorm_dataset(dataset)
-#    best_result = copy.deepcopy(result)
-   for global_epoch in range(last_global_epoch, cfg['server']['num_epochs'] + 1):
-       if server.clients == None:
-           server.clients = clients
-       server.train(
-           dataset=copy.deepcopy(dataset['train']),
-           optimizer=optimizer,
-           metric=metric,
-           logger=logger,
-           global_epoch=global_epoch
-       )
-       scheduler.step()
-     
-       server.evaluate_trained_model(
-           dataset=copy.deepcopy(dataset['test']),
-           batchnorm_dataset=batchnorm_dataset,
-           logger=logger,
-           metric=metric,
-           global_epoch=global_epoch
-       )
+        server = create_server(
+            model=model,
+            clients=clients,
+            dataset=copy.deepcopy(dataset['train']),
+            communication_info=communication_info
+        )
+            
+        logger = make_logger(os.path.join('output', 'runs', 'train_{}'.format(cfg['model_tag'])))
+    else:
+        print('1')
+        cfg = result['cfg']
+        last_global_epoch = result['epoch']
+        server = result['server']
+        clients = result['clients']
+        optimizer.load_state_dict(result['optimizer_state_dict'])
+        scheduler.load_state_dict(result['scheduler_state_dict'])
+        data_split = result['data_split']
+        logger = result['logger']
 
+    data_loader_list = []
+    for client_id in client_ids:
+        # client_sampler = ClientDataSampler(
+        #     batch_size=cfg['client']['batch_size']['train'], 
+        #     data_split=copy.deepcopy(clients[client_id].data_split['train']),
+        #     client_id=client_id,
+        #     max_local_gradient_update=cfg['max_local_gradient_update'],
+        # )
 
+        # print(f"client_id: {client_id}, {len(clients[client_id].data_split['train'])}, len(client_sampler): {len(client_sampler)}")
+        data_loader_list.append(DataLoaderWrapper(make_data_loader(
+            dataset={'train': dataset}, 
+            tag='client',
+            # batch_sampler={'train': client_sampler}
+        )['train'])) 
 
+    print(f'last_global_epoch: {last_global_epoch}')
+    print(f"end: {cfg['server']['num_epochs'] + 1}")
+    # train_batchnorm_dataset = make_batchnorm_dataset(dataset)
+    #    best_result = copy.deepcopy(result)
+    for global_epoch in range(last_global_epoch, cfg['server']['num_epochs'] + 1):
+        if server.clients == None:
+            server.clients = clients
+        server.train(
+            dataset=copy.deepcopy(dataset['train']),
+            optimizer=optimizer,
+            metric=metric,
+            logger=logger,
+            global_epoch=global_epoch,
+            data_split=data_split,
+            data_loader_list=data_loader_list
+        )
+        scheduler.step()
+        
+        server.evaluate_trained_model(
+            dataset=copy.deepcopy(dataset['test']),
+            batchnorm_dataset=batchnorm_dataset,
+            logger=logger,
+            metric=metric,
+            global_epoch=global_epoch
+        )
 
-       # server.clients = None
-     
-       if metric.compare(logger.mean['test/{}'.format(metric.pivot_name)]):
-           metric.update(logger.mean['test/{}'.format(metric.pivot_name)])
-
-
-
-
-           # result = {
-           #     'cfg': cfg,
-           #     'epoch': global_epoch + 1,
-           #     'server': server,
-           #     'clients': clients,
-           #     'optimizer_state_dict': optimizer.state_dict(),
-           #     'scheduler_state_dict': scheduler.state_dict(),
-           #     'data_split': data_split,
-           #     'logger': logger,
-           #     'best_test_acc': best_test_acc
-           # }
-
-
-
-
-           # result has best model so far
-        #    best_result = {
-        #        'cfg': copy.deepcopy(cfg),
-        #        'epoch': global_epoch + 1,
-        #        'server': copy.deepcopy(server),
-        #        'clients': copy.deepcopy(clients),
-        #        'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-        #        'scheduler_state_dict': copy.deepcopy(scheduler.state_dict()),
-        #        'data_split': copy.deepcopy(data_split),
-        #        'logger': copy.deepcopy(logger),
-        #    }
+        # server.clients = None
+        
+        if metric.compare(logger.mean['test/{}'.format(metric.pivot_name)]):
+            metric.update(logger.mean['test/{}'.format(metric.pivot_name)])
+            # result = {
+            #     'cfg': cfg,
+            #     'epoch': global_epoch + 1,
+            #     'server': server,
+            #     'clients': clients,
+            #     'optimizer_state_dict': optimizer.state_dict(),
+            #     'scheduler_state_dict': scheduler.state_dict(),
+            #     'data_split': data_split,
+            #     'logger': logger,
+            #     'best_test_acc': best_test_acc
+            # }
 
 
 
 
-       if global_epoch % cfg['save_interval'] == 0 or global_epoch == cfg['server']['num_epochs']:
-           # update logger for safety
-           result = {
-               'cfg': cfg,
-               'epoch': global_epoch + 1,
-               'server': server,
-               'clients': clients,
-               'optimizer_state_dict': optimizer.state_dict(),
-               'scheduler_state_dict': scheduler.state_dict(),
-               'data_split': data_split,
-               'logger': logger,
-           }
- 
-           save(result, './output/model/{}_checkpoint.pt'.format(cfg['model_tag']))
+            # result has best model so far
+            #    best_result = {
+            #        'cfg': copy.deepcopy(cfg),
+            #        'epoch': global_epoch + 1,
+            #        'server': copy.deepcopy(server),
+            #        'clients': copy.deepcopy(clients),
+            #        'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
+            #        'scheduler_state_dict': copy.deepcopy(scheduler.state_dict()),
+            #        'data_split': copy.deepcopy(data_split),
+            #        'logger': copy.deepcopy(logger),
+            #    }
+        if global_epoch % cfg['save_interval'] == 0 or global_epoch == cfg['server']['num_epochs']:
+            # update logger for safety
+            result = {
+                'cfg': cfg,
+                'epoch': global_epoch + 1,
+                'server': server,
+                'clients': clients,
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'data_split': data_split,
+                'logger': logger,
+            }
+    
+            save(result, './output/model/{}_checkpoint.pt'.format(cfg['model_tag']))
+            # save(best_result, './output/model/{}_best.pt'.format(cfg['model_tag']))
 
-
-
-
-        #    save(best_result, './output/model/{}_best.pt'.format(cfg['model_tag']))
-
-
-
-
-       # if metric.compare(logger.mean['test/{}'.format(metric.pivot_name)]):
-       #     metric.update(logger.mean['test/{}'.format(metric.pivot_name)])
-       #     shutil.copy('./output/model/{}_checkpoint.pt'.format(cfg['model_tag']),
-       #                 './output/model/{}_best.pt'.format(cfg['model_tag']))
-       logger.reset()
-   return
+        # if metric.compare(logger.mean['test/{}'.format(metric.pivot_name)]):
+        #     metric.update(logger.mean['test/{}'.format(metric.pivot_name)])
+        #     shutil.copy('./output/model/{}_checkpoint.pt'.format(cfg['model_tag']),
+        #                 './output/model/{}_best.pt'.format(cfg['model_tag']))
+        logger.reset()
+    return
 
 
 

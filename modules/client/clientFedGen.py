@@ -108,7 +108,7 @@ class ClientFedGen(ClientBase):
         -------
         dict[int, object]
         '''
-        client_id = torch.arange(cfg['num_clients'])
+        client_id = np.arange(cfg['num_clients'])
         clients = [None for _ in range(cfg['num_clients'])]
         for m in range(len(clients)):
             available_labels = np.array([dataset[index]['target'].item() for index in data_split['train'][m]])

@@ -31,6 +31,10 @@ from models.api import (
     make_batchnorm
 )
 
+from modules.api import (
+    ClientDataSampler
+)
+
 from data import (
     fetch_dataset, 
     split_dataset, 
@@ -42,15 +46,20 @@ from data import (
 
 from optimizer.api import create_optimizer
 
+
+        
 class ServerBase:
 
     def __init__(
         self,
-        dataset
+        dataset,
+        clients
     ) -> None:
         self.fix_order_picking = -1
         self.client_prob_distribution = {}
         self.group_clients_prob_distribution = np.array([0 for _ in range(len(dataset.classes_counts))])
+        self.data_loader_list = []
+        self.generate_data_loader_list(dataset, clients)
         self.high_freq_clients = {}
         return
     
@@ -76,21 +85,22 @@ class ServerBase:
             self.clients[client_id].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
     
-    def generate_data_loader_list(self):
-        client_ids = torch.arange(cfg['num_clients'])
+    def generate_data_loader_list(self, dataset, clients):
+        client_ids = np.arange(cfg['num_clients'])
         for client_id in client_ids:
-            client_sampler = ClientDataSampler(
-                batch_size=cfg['client']['batch_size']['train'], 
-                data_split=copy.deepcopy(self.clients[client_id].data_split['train']),
-                client_id=client_id,
-                max_local_gradient_update=cfg['max_local_gradient_update'],
-            )
-        
-            self.data_loader_list.append(make_data_loader(
-                dataset={'train': self.dataset}, 
+            # client_sampler = ClientDataSampler(
+            #     batch_size=cfg['client']['batch_size']['train'], 
+            #     data_split=copy.deepcopy(clients[client_id].data_split['train']),
+            #     client_id=client_id,
+            #     max_local_gradient_update=cfg['max_local_gradient_update'],
+            # )
+
+            # print(f"client_id: {client_id}, {len(clients[client_id].data_split['train'])}, len(client_sampler): {len(client_sampler)}")
+            self.data_loader_list.append(DataLoaderWrapper(make_data_loader(
+                dataset={'train': dataset}, 
                 tag='client',
-                batch_sampler={'train': client_sampler}
-            )['train']) 
+                # batch_sampler={'train': client_sampler}
+            )['train'])) 
         return
 
     def activate_clients(self, client_ids):

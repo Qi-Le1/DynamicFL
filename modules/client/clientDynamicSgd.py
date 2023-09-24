@@ -98,7 +98,7 @@ class ClientDynamicSgd(ClientBase):
             },
         )
 
-        # client_id = torch.arange(cfg['num_clients'])
+        # client_id = np.arange(cfg['num_clients'])
         # clients = [None for _ in range(cfg['num_clients'])]
         # for m in range(len(clients)):
         #     clients[m] = ClientFedAvg(

@@ -72,27 +72,15 @@ def fetch_dataset(data_name):
         dataset['test'] = eval('datasets.{}(root=root, split=\'test\', '
                                'transform=datasets.Compose([transforms.ToTensor()]))'.format(data_name))
         
-        if cfg['data_prep_norm'] == 'bn':
-            dataset['train'].transform = datasets.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
-                transforms.ToTensor(),
-                transforms.Normalize(*data_stats[data_name])])
-        elif cfg['data_prep_norm'] == 'ln':
-            dataset['train'].transform = datasets.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
-                transforms.ToTensor(),
-                nn.LayerNorm(data_dimension_stats[data_name])])
-        
-        if cfg['data_prep_norm'] == 'ln' and cfg['data_prep_norm_test'] == 'ln':
-            dataset['test'].transform = datasets.Compose([
-                transforms.ToTensor(),
-                nn.LayerNorm(data_dimension_stats[data_name])])
-        else:
-            dataset['test'].transform = datasets.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(*data_stats[data_name])])
+        dataset['train'].transform = datasets.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
+            transforms.ToTensor(),
+            transforms.Normalize(*data_stats[data_name])])
+
+        dataset['test'].transform = datasets.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(*data_stats[data_name])])
     elif data_name in ['SVHN']:
         dataset['train'] = eval('datasets.{}(root=root, split=\'train\', '
                                 'transform=datasets.Compose([transforms.ToTensor()]))'.format(data_name))
@@ -306,3 +294,21 @@ def make_batchnorm_stats(dataset, model, tag):
             input = to_device(input, cfg['device'])
             test_model(input)
     return test_model
+
+class DataLoaderWrapper:
+    def __init__(self, data_loader):
+        self.data_loader = data_loader
+        self.iterator = iter(data_loader)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            batch = next(self.iterator)
+            return batch
+        except StopIteration:
+            # Reset the DataLoader iterator
+            self.iterator = iter(self.data_loader)
+            batch = next(self.iterator)
+            return batch

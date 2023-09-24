@@ -30,8 +30,8 @@ def process_number_of_freq_levels(
             res.append(float(item))
         else:
             res.append(int(item))
-    cfg['high_freq_interval'] = res[0]    
-    cfg['low_freq_interval'] = res[1]
+    cfg['high_freq_interval'] = cfg['upload_freq_level'][res[0]]    
+    cfg['low_freq_interval'] = cfg['upload_freq_level'][res[1]]
     return res
 
 
@@ -86,6 +86,17 @@ def process_algo_parameters():
 
 
 def process_command():
+
+    cfg['upload_freq_level'] = {
+        6: 1,
+        5: 4,
+        4: 16,
+        3: 32,
+        2.5: 64,
+        2: 128,
+        1: 256
+    }
+
     process_algo_parameters()
     cfg['save_interval'] = 50
     cfg['data_name'] = cfg['control']['data_name']
@@ -143,6 +154,7 @@ def process_command():
         cfg['normalized_model_size'] = 1
         cfg['client']['optimizer_name'] = 'SGD'
         
+        cfg['resample_clients'] = True if int(cfg['control']['resample_clients']) == 1 else False
         if cfg['model_name'] == 'cnn':
             cfg['client']['lr'] = 1e-2
         elif cfg['model_name'] == 'resnet18':
@@ -161,15 +173,7 @@ def process_command():
     else:
         raise ValueError('no num_clients')
 
-    cfg['upload_freq_level'] = {
-        6: 1,
-        5: 4,
-        4: 16,
-        3: 32,
-        2.5: 64,
-        2: 128,
-        1: 256
-    }
+    
 
     print(f'cfg: {cfg}', flush=True)
     return

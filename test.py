@@ -26,62 +26,101 @@ from config import cfg, process_args
 
 # if __name__ == "__main__":
 
-class ClientSampler(torch.utils.data.Sampler):
-    def __init__(self, 
-    ):
-        self.idx = [i for i in range(100)]
-        self.start = 0
-        self.end = len(self.idx)
+# class ClientSampler(torch.utils.data.Sampler):
+#     def __init__(self, 
+#     ):
+#         self.idx = [i for i in range(100)]
+#         self.start = 0
+#         self.end = len(self.idx)
 
-    def __iter__(self):
-        return self
+#     def __iter__(self):
+#         return self
     
-    def __next__(self):
-        if self.start < self.end:
-            res = self.start
-            self.start += 1
-            return self.idx[res]
-        else:
-            self.start = 0
-            raise StopIteration
+#     def __next__(self):
+#         if self.start < self.end:
+#             res = self.start
+#             self.start += 1
+#             return self.idx[res]
+#         else:
+#             self.start = 0
+#             raise StopIteration
+
+#     def __len__(self):
+#         return len(self.idx)
+
+
+# def iterate(clientsampler):
+#     for i in range(10):
+#         print(next(clientsampler))
+
+# a = ClientSampler()
+# iterate(a)
+# iterate(a)
+# iterate(a)
+# iterate(a)
+
+# from torch.utils.data import DataLoader, Dataset, Sampler
+
+# class SimpleDataset(Dataset):
+#     def __init__(self, data):
+#         self.data = data
+
+#     def __len__(self):
+#         return len(self.data)
+
+#     def __getitem__(self, idx):
+#         return self.data[idx]
+
+# data = [i for i in range(100, 200)]
+# dataset = SimpleDataset(data)
+
+# dataloader = DataLoader(dataset, batch_size=1, sampler=ClientSampler())
+
+# for i, input in enumerate(dataloader):
+#     print(i, input, '\n')
+#     if i == 10:
+#         break
+
+# for i, input in enumerate(dataloader):
+#     print(i, input, '\n')
+#     if i == 10:
+#         break
+
+
+
+
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+# Define a custom Dataset class
+class SyntheticDataset(Dataset):
+    def __init__(self, num_samples, input_dim):
+        self.num_samples = num_samples
+        self.input_dim = input_dim
+        self.data = torch.randn(num_samples, input_dim)
+        self.labels = torch.randint(0, 2, (num_samples,))
 
     def __len__(self):
-        return len(self.idx)
-
-
-def iterate(clientsampler):
-    for i in range(10):
-        print(next(clientsampler))
-
-a = ClientSampler()
-iterate(a)
-iterate(a)
-iterate(a)
-iterate(a)
-
-from torch.utils.data import DataLoader, Dataset, Sampler
-
-class SimpleDataset(Dataset):
-    def __init__(self, data):
-        self.data = data
-
-    def __len__(self):
-        return len(self.data)
+        return self.num_samples
 
     def __getitem__(self, idx):
-        return self.data[idx]
+        sample = self.data[idx]
+        label = self.labels[idx]
+        return sample, label, idx
 
-data = [i for i in range(100, 200)]
-dataset = SimpleDataset(data)
+# Create an instance of the SyntheticDataset with 100 samples of dimension 10
+synthetic_dataset = SyntheticDataset(num_samples=8, input_dim=1)
 
-dataloader = DataLoader(dataset, batch_size=1, sampler=ClientSampler())
+# Create a DataLoader to handle batching of data
+data_loader = DataLoader(synthetic_dataset, batch_size=5, shuffle=False)
 
-for i, input in enumerate(dataloader):
-    print(i, input, '\n')
-    if i == 10:
-        break
+# Iterate over the data loader in a for-loop
+a = iter(data_loader)
+b = next(a)
+print(b)
+c = next(a)
+print(c)
 
-for i, input in enumerate(dataloader):
-    print(i, input, '\n')
-    if i == 10:
-        break
+a = iter(data_loader)
+d = next(a)
+print(d)

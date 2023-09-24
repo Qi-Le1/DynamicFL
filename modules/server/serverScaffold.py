@@ -13,7 +13,7 @@ from itertools import compress
 from config import cfg
 from collections import defaultdict
 
-from .serverBase import ClientSampler
+# from .serverBase import ClientSampler
 
 from utils.api import (
     to_device,  

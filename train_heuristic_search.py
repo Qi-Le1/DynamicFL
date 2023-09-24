@@ -275,7 +275,7 @@ def runExperiment():
         last_global_epoch = 1
         communicationMetaData = None
         if cfg['algo_mode'] == 'dynamicfl':
-            client_ids = torch.arange(cfg['num_clients'])
+            client_ids = np.arange(cfg['num_clients'])
             communicationMetaData = ClientDynamicFL.create_communication_meta_data(client_ids=client_ids)
         clients = create_clients(
             model=model, 

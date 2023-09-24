@@ -9,7 +9,6 @@ from .serverDynamicAvg import ServerDynamicAvg
 from .serverScaffold import ServerScaffold
 from .serverCombinationSearch import ServerCombinationSearch
 from .serverFedNova import ServerFedNova
-from ..utils.clientSelector import ClientSelector
 
 __api__ = [
     'ServerDynamicFL',
@@ -23,5 +22,4 @@ __api__ = [
     'ServerScaffold',
     'ServerCombinationSearch',
     'ServerFedNova',
-    'ClientSelector'
 ]

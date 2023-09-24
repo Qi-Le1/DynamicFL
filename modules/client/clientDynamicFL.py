@@ -63,6 +63,7 @@ class ClientDynamicFL(ClientBase):
         self.active = False
 
         self.freq_interval = None
+        self.communication_cost = None
         self.communication_cost_budget = None
         
     @classmethod
@@ -71,7 +72,7 @@ class ClientDynamicFL(ClientBase):
         model: ModelType, 
         data_split: dict[str, dict[int, list[int]]],
     ) -> dict[int, ClientType]:
-        client_ids = torch.arange(cfg['num_clients'])
+        client_ids = np.arange(cfg['num_clients'])
         clients = [None for _ in range(cfg['num_clients'])]
         for m in range(len(clients)):
             clients[m] = ClientDynamicFL(
@@ -102,32 +103,34 @@ class ClientDynamicFL(ClientBase):
         optimizer = create_optimizer(model, 'client')
         optimizer.load_state_dict(self.optimizer_state_dict)
         model.train(True)
+        cur_grad_updates_num = 0
+        data_loader_iter = iter(data_loader)
+        while cur_grad_updates_num < grad_updates_num:
+            
+            # for i, input in enumerate(data_loader): 
+            input = next(data_loader_iter)
+            input = collate(input)
+            input_size = input['data'].size(0)
+            input = to_device(input, cfg['device'])
+            optimizer.zero_grad()
+            output = model(input)
+            output['loss'].backward()
 
-        cur_grad_updates_num = 1
-        while cur_grad_updates_num <= grad_updates_num:
-            for i, input in enumerate(data_loader): 
-                input = collate(input)
-                input_size = input['data'].size(0)
-                input = to_device(input, cfg['device'])
-                optimizer.zero_grad()
-                output = model(input)
-                output['loss'].backward()
-
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=cfg['max_clip_norm'])
-                optimizer.step()
-                evaluation = metric.evaluate(
-                    metric.metric_name['train'], 
-                    input, 
-                    output
-                )
-                logger.append(
-                    evaluation, 
-                    'train', 
-                    n=input_size
-                )
-                cur_grad_updates_num += 1                      
-                if cur_grad_updates_num == grad_updates_num + 1:
-                    break
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=cfg['max_clip_norm'])
+            optimizer.step()
+            evaluation = metric.evaluate(
+                metric.metric_name['train'], 
+                input, 
+                output
+            )
+            logger.append(
+                evaluation, 
+                'train', 
+                n=input_size
+            )
+            cur_grad_updates_num += 1                      
+            # if cur_grad_updates_num == grad_updates_num:
+            #     break
 
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}

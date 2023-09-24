@@ -12,7 +12,7 @@ from itertools import compress
 from config import cfg
 from collections import defaultdict
 
-from .serverBase import ClientSampler
+
 
 from _typing import (
     DatasetType,

@@ -24,7 +24,7 @@ from _typing import (
 )
 
 from optimizer.api import create_optimizer
-from .serverBase import ServerBase, ClientSampler
+from .serverBase import ServerBase
 
 from data import (
     fetch_dataset, 
