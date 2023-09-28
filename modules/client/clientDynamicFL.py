@@ -85,6 +85,12 @@ class ClientDynamicFL(ClientBase):
             )
         return clients
 
+    def add_prefix(self, prefix, evaluation):
+        res = {}
+        for key, value in evaluation.items():
+            res['{}_{}'.format(prefix, key)] = value
+        return res
+
     def train(
         self, 
         data_loader,
@@ -123,15 +129,30 @@ class ClientDynamicFL(ClientBase):
                 input, 
                 output
             )
+            # print(evaluation)
             logger.append(
                 evaluation, 
                 'train', 
                 n=input_size
             )
+            if self.freq_interval == cfg['high_freq_interval']:
+                evaluation = self.add_prefix('high_freq', evaluation)
+                logger.append(
+                    evaluation, 
+                    'train', 
+                    n=input_size
+                )
+            elif self.freq_interval == cfg['low_freq_interval']:
+                evaluation = self.add_prefix('low_freq', evaluation)
+                logger.append(
+                    evaluation, 
+                    'train', 
+                    n=input_size
+                )
             cur_grad_updates_num += 1                      
             # if cur_grad_updates_num == grad_updates_num:
             #     break
-
+        # print('client {} train done'.format(self.client_id), cur_grad_updates_num)
         self.optimizer_state_dict = optimizer.state_dict()
         self.model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
         return

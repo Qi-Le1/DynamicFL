@@ -59,7 +59,7 @@ class ServerBase:
         self.client_prob_distribution = {}
         self.group_clients_prob_distribution = np.array([0 for _ in range(len(dataset.classes_counts))])
         self.data_loader_list = []
-        self.generate_data_loader_list(dataset, clients)
+        # self.generate_data_loader_list(dataset, clients)
         self.high_freq_clients = {}
         return
     
@@ -85,23 +85,23 @@ class ServerBase:
             self.clients[client_id].model_state_dict = copy.deepcopy(server_model_state_dict)
         return
     
-    def generate_data_loader_list(self, dataset, clients):
-        client_ids = np.arange(cfg['num_clients'])
-        for client_id in client_ids:
-            # client_sampler = ClientDataSampler(
-            #     batch_size=cfg['client']['batch_size']['train'], 
-            #     data_split=copy.deepcopy(clients[client_id].data_split['train']),
-            #     client_id=client_id,
-            #     max_local_gradient_update=cfg['max_local_gradient_update'],
-            # )
+    # def generate_data_loader_list(self, dataset, clients):
+    #     client_ids = np.arange(cfg['num_clients'])
+    #     for client_id in client_ids:
+    #         # client_sampler = ClientDataSampler(
+    #         #     batch_size=cfg['client']['batch_size']['train'], 
+    #         #     data_split=copy.deepcopy(clients[client_id].data_split['train']),
+    #         #     client_id=client_id,
+    #         #     max_local_gradient_update=cfg['max_local_gradient_update'],
+    #         # )
 
-            # print(f"client_id: {client_id}, {len(clients[client_id].data_split['train'])}, len(client_sampler): {len(client_sampler)}")
-            self.data_loader_list.append(DataLoaderWrapper(make_data_loader(
-                dataset={'train': dataset}, 
-                tag='client',
-                # batch_sampler={'train': client_sampler}
-            )['train'])) 
-        return
+    #         # print(f"client_id: {client_id}, {len(clients[client_id].data_split['train'])}, len(client_sampler): {len(client_sampler)}")
+    #         self.data_loader_list.append(DataLoaderWrapper(make_data_loader(
+    #             dataset={'train': dataset}, 
+    #             tag='client',
+    #             # batch_sampler={'train': client_sampler}
+    #         )['train'])) 
+    #     return
 
     def activate_clients(self, client_ids):
         # Check if client_ids is not a string and is iterable
@@ -147,6 +147,15 @@ class ServerBase:
             logger.append(info, 'train', mean=False)
             print(logger.write('train', metric.metric_name['train']), flush=True)
 
+    def add_prefix(self, metric):
+        res = []
+        for value in metric:
+            res.append('{}_{}'.format('high_freq', value))
+        
+        for value in metric:
+            res.append('{}_{}'.format('low_freq', value))
+        return res
+    
     def add_dynamicFL_log(
         self,
         local_gradient_update,
@@ -157,21 +166,29 @@ class ServerBase:
         metric,
         logger
     ) -> None:
-        if local_gradient_update % int((cfg['max_local_gradient_update'] * cfg['log_interval']) + 1) == 0:
-            _time = (time.time() - start_time) / (local_gradient_update + 1)
-            global_epoch_finished_time = datetime.timedelta(seconds=_time * (cfg['max_local_gradient_update'] - local_gradient_update - 1))
-            exp_finished_time = global_epoch_finished_time + datetime.timedelta(
-                seconds=round((cfg['server']['num_epochs'] - global_epoch) * _time * cfg['max_local_gradient_update']))
-            exp_progress = 100. * local_gradient_update / cfg['max_local_gradient_update']
-            info = {'info': ['Model: {}'.format(cfg['model_tag']),
-                            'Train Epoch (C): {}({:.0f}%)'.format(global_epoch, exp_progress),
-                            'Learning rate: {:.6f}'.format(lr),
-                            # 'ID: {}({}/{})'.format(selected_client_ids[i], i + 1, cfg['max_local_gradient_update']),
-                            'Global Epoch Finished Time: {}'.format(global_epoch_finished_time),
-                            'Experiment Finished Time: {}'.format(exp_finished_time)]}
-            logger.append(info, 'train', mean=False)
-            print(logger.write('train', metric.metric_name['train']), flush=True)
+        # if local_gradient_update % int((cfg['max_local_gradient_update'] * cfg['log_interval']) + 1) == 0:
+        # _time = (time.time() - start_time) / (local_gradient_update + 1)
+        _time = (time.time() - start_time)
+        # global_epoch_finished_time = datetime.timedelta(seconds=_time * (cfg['max_local_gradient_update'] - local_gradient_update - 1))
+        global_epoch_finished_time = datetime.timedelta(seconds=_time)
+        # exp_finished_time = global_epoch_finished_time + datetime.timedelta(
+        #     seconds=round((cfg['server']['num_epochs'] - global_epoch) * _time * cfg['max_local_gradient_update']))
+        exp_finished_time = global_epoch_finished_time + datetime.timedelta(
+            seconds=round((cfg['server']['num_epochs'] - global_epoch) * _time))
+        # exp_progress = 100. * local_gradient_update / cfg['max_local_gradient_update']
+        info = {'info': ['Model: {}'.format(cfg['model_tag']),
+                        'Train Epoch (C): {}'.format(global_epoch),
+                        'Learning rate: {:.6f}'.format(lr),
+                        # 'ID: {}({}/{})'.format(selected_client_ids[i], i + 1, cfg['max_local_gradient_update']),
+                        'Global Epoch Finished Time: {}'.format(global_epoch_finished_time),
+                        'Experiment Finished Time: {}'.format(exp_finished_time)]}
+        logger.append(info, 'train', mean=False)
 
+        metric_names = self.add_prefix(metric.metric_name['train'])
+        print(logger.write('train', metric_names), flush=True)
+
+        # metric_names = self.add_prefix('low_freq', metric.metric_name['train'])
+        # print(logger.write('train', metric_names), flush=True)
         return
 
    

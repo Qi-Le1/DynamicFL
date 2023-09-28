@@ -89,38 +89,48 @@ from config import cfg, process_args
 
 
 
-import torch
-from torch.utils.data import Dataset, DataLoader
+# import torch
+# from torch.utils.data import Dataset, DataLoader
 
-# Define a custom Dataset class
-class SyntheticDataset(Dataset):
-    def __init__(self, num_samples, input_dim):
-        self.num_samples = num_samples
-        self.input_dim = input_dim
-        self.data = torch.randn(num_samples, input_dim)
-        self.labels = torch.randint(0, 2, (num_samples,))
+# # Define a custom Dataset class
+# class SyntheticDataset(Dataset):
+#     def __init__(self, num_samples, input_dim):
+#         self.num_samples = num_samples
+#         self.input_dim = input_dim
+#         self.data = torch.randn(num_samples, input_dim)
+#         self.labels = torch.randint(0, 2, (num_samples,))
 
-    def __len__(self):
-        return self.num_samples
+#     def __len__(self):
+#         return self.num_samples
 
-    def __getitem__(self, idx):
-        sample = self.data[idx]
-        label = self.labels[idx]
-        return sample, label, idx
+#     def __getitem__(self, idx):
+#         sample = self.data[idx]
+#         label = self.labels[idx]
+#         return sample, label, idx
 
-# Create an instance of the SyntheticDataset with 100 samples of dimension 10
-synthetic_dataset = SyntheticDataset(num_samples=8, input_dim=1)
+# # Create an instance of the SyntheticDataset with 100 samples of dimension 10
+# synthetic_dataset = SyntheticDataset(num_samples=8, input_dim=1)
 
-# Create a DataLoader to handle batching of data
-data_loader = DataLoader(synthetic_dataset, batch_size=5, shuffle=False)
+# # Create a DataLoader to handle batching of data
+# data_loader = DataLoader(synthetic_dataset, batch_size=5, shuffle=False)
 
-# Iterate over the data loader in a for-loop
-a = iter(data_loader)
-b = next(a)
-print(b)
-c = next(a)
-print(c)
+# # Iterate over the data loader in a for-loop
+# a = iter(data_loader)
+# b = next(a)
+# print(b)
+# c = next(a)
+# print(c)
 
-a = iter(data_loader)
-d = next(a)
-print(d)
+# a = iter(data_loader)
+# d = next(a)
+# print(d)
+
+import numpy as np
+
+# Given parameters
+mu = 0.5
+sigma = 0.05
+
+# Generate 10 random samples from the normal distribution
+random_samples = np.random.normal(loc=mu, scale=sigma, size=10)
+print(random_samples)

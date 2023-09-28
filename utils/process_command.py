@@ -108,7 +108,7 @@ def process_command():
     cfg['norm'] = 'ln'
     cfg['server_aggregation'] = 'WA'
     
-    cfg['dp_ensemble_times'] = 10
+    cfg['dp_ensemble_times'] = 3
 
     data_shape = {'CIFAR10': [3, 32, 32], 'CIFAR100': [3, 32, 32], 'SVHN': [3, 32, 32], 'MNIST': [1, 28, 28], 'FEMNIST': [1, 28, 28]}
     cfg['data_shape'] = data_shape[cfg['data_name']]

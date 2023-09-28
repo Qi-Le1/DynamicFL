@@ -91,6 +91,7 @@ class ServerDynamicFL(ServerBase):
             return
 
         for cur_client_id in self.dynamic_uploaded_clients[local_gradient_update]:
+            print(f'local_gradient_update: {local_gradient_update}, cur_client_id: {cur_client_id}')
             self.clients[cur_client_id].model_state_dict = copy.deepcopy(self.server_model_state_dict)
 
         del self.dynamic_uploaded_clients[local_gradient_update]
@@ -110,12 +111,12 @@ class ServerDynamicFL(ServerBase):
 
     def update_dynamic_part(
         self,
-        local_gradent_update: int,
+        local_gradient_update: int,
     ):
         with torch.no_grad():
-            if local_gradent_update not in self.dynamic_uploaded_clients:
+            if local_gradient_update not in self.dynamic_uploaded_clients:
                 return
-            new_model_parameters_list = self.dynamic_iterates[local_gradent_update]
+            new_model_parameters_list = self.dynamic_iterates[local_gradient_update]
             if len(new_model_parameters_list) > 0:
                 model = super().create_model(track_running_stats=False, on_cpu=True)
                 model.load_state_dict(self.server_model_state_dict)
@@ -124,7 +125,7 @@ class ServerDynamicFL(ServerBase):
                 server_optimizer.zero_grad()
                 
                 weight = []
-                for client_id in self.dynamic_uploaded_clients[local_gradent_update]:
+                for client_id in self.dynamic_uploaded_clients[local_gradient_update]:
                     valid_client = self.clients[client_id]
                     cur_data_size = len(valid_client.data_split['train'])
                     if cfg['server_aggregation'] == 'WA':
@@ -145,7 +146,7 @@ class ServerDynamicFL(ServerBase):
                 self.server_optimizer_state_dict = server_optimizer.state_dict()
                 self.server_model_state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
 
-            del self.dynamic_iterates[local_gradent_update]
+            del self.dynamic_iterates[local_gradient_update]
         return
 
     def update_server_model(self, clients: dict[int, ClientType], selected_client_ids) -> None:
@@ -211,6 +212,7 @@ class ServerDynamicFL(ServerBase):
         logger: LoggerType, 
         global_epoch: int,
         data_split,
+        data_loader_list
     ):
         logger.safe(True)
 
@@ -227,9 +229,13 @@ class ServerDynamicFL(ServerBase):
             clients=self.clients,
             dataset=dataset,
             data_split=data_split,
+            logger=logger,
             communication_info=self.communication_info
         )
         for local_gradient_update in range(cfg['max_local_gradient_update']):            
+
+            self.update_dynamic_part(local_gradient_update=local_gradient_update)
+
             self.distribute_dynamic_part(local_gradient_update=local_gradient_update)
             
             selected_client_ids, new_selected_client_ids = client_selector.select_clients(
@@ -252,10 +258,11 @@ class ServerDynamicFL(ServerBase):
                 #     local_gradient_update % cfg['low_freq_interval'] == 0:
                 
                 if self.is_client_active(local_gradient_update, client_id):
+                    # print(f'client_id: {client_id}, local_gradient_update: {local_gradient_update}, freq_interval: {self.clients[client_id].freq_interval}')
                     # print(f'local_gradient_update: {local_gradient_update}', client_id, self.clients[client_id].freq_interval, flush=True)
                     grad_updates_num = self.clients[client_id].freq_interval
                     self.clients[client_id].train(
-                        data_loader=self.data_loader_list[client_id], 
+                        data_loader=data_loader_list[client_id], 
                         lr=lr, 
                         metric=metric, 
                         logger=logger,
@@ -268,14 +275,14 @@ class ServerDynamicFL(ServerBase):
                         cur_client_id=client_id
                     )
                 
-            super().add_dynamicFL_log(
-                local_gradient_update=local_gradient_update,
-                start_time=start_time,
-                global_epoch=global_epoch,
-                lr=lr,
-                metric=metric,
-                logger=logger,
-            )
+        super().add_dynamicFL_log(
+            local_gradient_update=local_gradient_update,
+            start_time=start_time,
+            global_epoch=global_epoch,
+            lr=lr,
+            metric=metric,
+            logger=logger,
+        )
         
         logger.safe(False)
         logger.reset()

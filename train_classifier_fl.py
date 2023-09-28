@@ -274,8 +274,9 @@ def runExperiment():
         # )
 
         # print(f"client_id: {client_id}, {len(clients[client_id].data_split['train'])}, len(client_sampler): {len(client_sampler)}")
+        dataset_client_id = separate_dataset(dataset['train'], data_split['train'][client_id])
         data_loader_list.append(DataLoaderWrapper(make_data_loader(
-            dataset={'train': dataset}, 
+            dataset={'train': dataset_client_id}, 
             tag='client',
             # batch_sampler={'train': client_sampler}
         )['train'])) 

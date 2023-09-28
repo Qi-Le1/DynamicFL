@@ -728,9 +728,9 @@ def main():
                 # CIFAR10_controls_9 = make_controls(script_name, init_seeds, device, resume_mode, control_name)
                 # controls.extend(CIFAR10_controls_9)
 
-                control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.1', 'non-iid-l-2'], 
+                control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-2'], 
                         ['dynamicfl'], ['5'], ['1-0'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3'],  
-                         ['6-1'], ['gene'], ['0', '1'], ['0'], ['0']]]
+                         ['6-1'], ['dyna', 'rand'], ['0', '1'], ['0'], ['0']]]
                 CIFAR10_controls_9 = make_controls(script_name, init_seeds, device, resume_mode, control_name)
                 controls.extend(CIFAR10_controls_9)
 
