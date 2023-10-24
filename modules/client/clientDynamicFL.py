@@ -63,8 +63,8 @@ class ClientDynamicFL(ClientBase):
         self.active = False
 
         self.freq_interval = None
-        self.communication_cost = None
-        self.communication_cost_budget = None
+        # self.communication_cost = None
+        # self.communication_cost_budget = None
         
     @classmethod
     def create_clients(

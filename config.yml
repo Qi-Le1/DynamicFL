@@ -9,13 +9,14 @@ control:
   data_split_mode: 'non-iid-d-0.3'
   algo_mode: 'fedgen'
   local_epoch: '5'
-  client_ratio: '1-0'
   server_ratio: '1-0'
+  client_ratio: '1-0'
   number_of_freq_levels: '6-1'
   select_way: 'dyna'
-  resample_clients: '0'
+  # resample_clients: '0'
   only_high_freq: '0'
-  cal_communication_cost: '0'
+  only_select_clients: '0'
+  fix_dyna_count: '0'
 
   
   

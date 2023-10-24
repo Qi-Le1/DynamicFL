@@ -298,14 +298,14 @@ def runExperiment():
             data_loader_list=data_loader_list
         )
         scheduler.step()
-        
-        server.evaluate_trained_model(
-            dataset=copy.deepcopy(dataset['test']),
-            batchnorm_dataset=batchnorm_dataset,
-            logger=logger,
-            metric=metric,
-            global_epoch=global_epoch
-        )
+        if cfg['only_select_clients'] == False:   
+            server.evaluate_trained_model(
+                dataset=copy.deepcopy(dataset['test']),
+                batchnorm_dataset=batchnorm_dataset,
+                logger=logger,
+                metric=metric,
+                global_epoch=global_epoch
+            )
 
         # server.clients = None
         
@@ -322,10 +322,6 @@ def runExperiment():
             #     'logger': logger,
             #     'best_test_acc': best_test_acc
             # }
-
-
-
-
             # result has best model so far
             #    best_result = {
             #        'cfg': copy.deepcopy(cfg),

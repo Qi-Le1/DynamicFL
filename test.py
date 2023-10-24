@@ -125,12 +125,76 @@ from config import cfg, process_args
 # d = next(a)
 # print(d)
 
+# import numpy as np
+
+# # Given parameters
+# mu = 0.5
+# sigma = 0.05
+
+# # Generate 10 random samples from the normal distribution
+# random_samples = np.random.normal(loc=mu, scale=sigma, size=10)
+# print(random_samples)
+
+
+import torch
+from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
-# Given parameters
-mu = 0.5
-sigma = 0.05
+# Define a simple custom dataset
+class MyDataset(Dataset):
+    def __init__(self, labels):
+        # self.data = data
+        self.labels = labels
+        
+    def __len__(self):
+        return len(self.labels)
+    
+    def __getitem__(self, idx):
+        return self.labels[idx]
 
-# Generate 10 random samples from the normal distribution
-random_samples = np.random.normal(loc=mu, scale=sigma, size=10)
-print(random_samples)
+# Generate some synthetic data
+np.random.seed(42)  # Optional: seeding for reproducibility
+# data = np.random.randn(100, 1)  # 100 samples, each with 3 features
+labels = np.random.randint(0, 2, size=10)  # Binary labels
+
+# Convert data and labels to PyTorch tensors
+# data_tensor = torch.tensor(data, dtype=torch.float32)
+labels_tensor = torch.tensor(labels, dtype=torch.long)
+
+# Create an instance of MyDataset
+my_dataset = MyDataset(labels_tensor)
+
+# Create a DataLoader
+dataloader = DataLoader(my_dataset, batch_size=1, shuffle=True)
+
+class DataLoaderWrapper:
+    def __init__(self, data_loader):
+        self.data_loader = data_loader
+        self.iterator = iter(data_loader)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            batch = next(self.iterator)
+            return batch
+        except StopIteration:
+            # Reset the DataLoader iterator
+            self.iterator = iter(self.data_loader)
+            batch = next(self.iterator)
+            return batch
+
+a = DataLoaderWrapper(dataloader)
+# Loop through the DataLoader (one epoch)
+# for batch_idx, (batch_data, batch_labels) in enumerate(dataloader):
+#     print(f"Batch {batch_idx} | Data: {batch_data.size()} | Labels: {batch_labels.size()}")
+
+b = iter(a)
+for i in range(20):
+    print(next(b))
+    if i == 9:
+        print('zzzz')
+# print('-----\n')
+# for i in range(10):
+#     print(next(b))

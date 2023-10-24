@@ -98,7 +98,7 @@ def process_command():
     }
 
     process_algo_parameters()
-    cfg['save_interval'] = 50
+    cfg['save_interval'] = 100
     cfg['data_name'] = cfg['control']['data_name']
     cfg['model_name'] = cfg['control']['model_name']
     cfg['algo_mode'] = cfg['control']['algo_mode']
@@ -121,13 +121,17 @@ def process_command():
     if 'reweight_sample' in cfg['control']:
         cfg['reweight_sample'] = True if int(cfg['control']['reweight_sample']) == 1 else False
     
-    cfg['cal_communication_cost'] = False
-    if 'cal_communication_cost' in cfg['control']:
-        cfg['cal_communication_cost'] = True if int(cfg['control']['cal_communication_cost']) == 1 else False
+    cfg['only_select_clients'] = False
+    if 'only_select_clients' in cfg['control']:
+        cfg['only_select_clients'] = True if int(cfg['control']['only_select_clients']) == 1 else False
     
     cfg['only_high_freq'] = False
     if 'only_high_freq' in cfg['control']:
         cfg['only_high_freq'] = True if int(cfg['control']['only_high_freq']) == 1 else False
+
+    cfg['fix_dyna_count'] = False
+    if 'fix_dyna_count' in cfg['control']:
+        cfg['fix_dyna_count'] = True if int(cfg['control']['fix_dyna_count']) == 1 else False
 
     cfg['threshold'] = 0.95
     cfg['alpha'] = 0.75
@@ -154,7 +158,9 @@ def process_command():
         cfg['normalized_model_size'] = 1
         cfg['client']['optimizer_name'] = 'SGD'
         
-        cfg['resample_clients'] = True if int(cfg['control']['resample_clients']) == 1 else False
+        cfg['resample_clients'] = False
+        if 'resample_clients' in cfg['control']:
+            cfg['resample_clients'] = True if int(cfg['control']['resample_clients']) == 1 else False
         if cfg['model_name'] == 'cnn':
             cfg['client']['lr'] = 1e-2
         elif cfg['model_name'] == 'resnet18':

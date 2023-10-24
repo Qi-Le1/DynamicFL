@@ -9,7 +9,6 @@ from sko.GA import GA
 from collections import Counter
 from scipy.special import rel_entr
 
-
 class ClientSelector:
     def __init__(self, client_ids, clients, dataset, data_split, logger, communication_info):
         self.client_ids = client_ids
@@ -21,8 +20,10 @@ class ClientSelector:
         self.clients_label_distribution = {}
         self.global_label_distribution = self.get_global_labels_distribution(dataset)
         self.communication_info = communication_info
-        self.high_freq_client_ids = [key for key, _ in communication_info.client_to_freq_interval.items()]
-        self.low_freq_client_ids = [key for key, _ in communication_info.client_to_freq_interval.items()]
+        self.high_freq_client_ids = {key for key, val in communication_info.client_to_freq_interval.items() if val == cfg['high_freq_interval']}
+        self.low_freq_client_ids = {key for key, val in communication_info.client_to_freq_interval.items() if val == cfg['low_freq_interval']}
+        # print('high_freq_client_ids: ', self.high_freq_client_ids, flush=True)
+        # print('low_freq_client_ids: ', self.low_freq_client_ids, flush=True)
         self.total_client_ids = set(copy.deepcopy(self.client_ids))
         self.high_freq_clients_list = []
         self.high_freq_clients_KL_list = []
@@ -98,13 +99,18 @@ class ClientSelector:
         permutation_lists = []
         for i in range(cfg['dp_ensemble_times']):
             temp = copy.deepcopy(selected_client_ids)
-            np.random.shuffle(temp)
+            # np.random.seed(time.time())
+            # np.random.shuffle(temp)
+            random.shuffle(temp)
             permutation_lists.append(copy.deepcopy(temp))
         return permutation_lists
 
     def genetic(self, client_ids, num_clients):
         temp_genetic_client_ids = list(client_ids)
-        np.random.shuffle(temp_genetic_client_ids)
+        # np.random.seed(time.time())
+        # np.random.shuffle(temp_genetic_client_ids)
+
+        random.shuffle(temp_genetic_client_ids)
         lb = [0 for _ in range(len(client_ids))]
         ub = [1 for _ in range(len(client_ids))]
         precision = [1 for _ in range(len(client_ids))]
@@ -157,17 +163,21 @@ class ClientSelector:
                         temp['distance'] = self.cal_KL_divergence(comb_prob, self.global_label_distribution)
                         # add communication cost
                         if cfg['server_ratio'] == '1-0':
-                            cur_total_communication_cost = self.communication_info.cal_clients_communication_cost(
-                                clients=self.clients, 
+                            cur_client_communication_cost_budget = self.communication_info.client_to_communication_cost_budget[client_id]
+                            # check client's communication cost
+                            if cur_client_communication_cost_budget < self.communication_info.client_high_freq_communication_cost_budget:
+                                continue
+
+                            cur_total_communication_cost = self.communication_info.cal_active_clients_communication_cost(
                                 client_ids=temp['dp_client_ids'],
                             )
-                            cur_client_communication_cost_budget = self.clients[client_id].communication_cost_budget
-
-                            # check client's communication cost
-                            if cur_client_communication_cost_budget < self.communication_info.client_high_freq_communication_cost:
-                                continue
                             # check server's communication cost
                             if self.server_high_freq_communication_cost_budget < cur_total_communication_cost:
+                                continue
+                        elif cfg['client_ratio'] == '1-0':
+                            cur_total_communication_cost = self.communication_info.client_high_freq_communication_cost * len(temp['dp_client_ids'])
+                            # check server's communication cost
+                            if self.communication_info.server_high_freq_communication_cost_budget < cur_total_communication_cost:
                                 continue
 
                         if temp['distance'] < dp_res[i][j]['distance'] and len(temp['dp_client_ids']) == j:
@@ -182,22 +192,30 @@ class ClientSelector:
                 if dp_res[-1][j]['distance'] < min_distance_for_all:
                     min_distance_for_all = dp_res[-1][j]['distance']
                     min_client_ids_for_all = dp_res[-1][j]['dp_client_ids']
-            return min_distance, min_client_ids, min_distance_for_all, min_client_ids_for_all
+            
+            if cfg['fix_dyna_count'] == True:
+                return min_distance, min_client_ids
+            elif cfg['fix_dyna_count'] == False:
+                return min_distance_for_all, min_client_ids_for_all
+            # return min_distance, min_client_ids, min_distance_for_all, min_client_ids_for_all
         
-        permutation_list = client_ids  # help me permute cfg['dp_ensemble_times'] times
-
         permutation_list = []
         # for _ in range(1):
         for _ in range(cfg['dp_ensemble_times']):
             # Use np.random.choice to generate a permutation of client_ids
-            permutation = np.random.choice(list(client_ids), size=len(client_ids), replace=False)
+            # np.random.seed(time.time())
+            # print(time.time(), int(time.time()), flush=True)
+            # permutation = np.random.choice(list(client_ids), size=len(client_ids), replace=False)
+
+            permutation = random.sample(list(client_ids), len(client_ids))
+            # print('permutation: ', permutation, flush=True)
             # Append this permutation to the permutation_list
             permutation_list.append(list(permutation))
 
         minimum_distance = float('inf')
         minimum_dist_selected_client_ids = None
         for client_list in permutation_list:
-            min_dist, selected_client_ids, _, _ = dp(client_list, num_clients)
+            min_dist, selected_client_ids = dp(client_list, num_clients)
             if min_dist < minimum_distance:
                 minimum_distance = min_dist
                 minimum_dist_selected_client_ids = selected_client_ids
@@ -211,7 +229,10 @@ class ClientSelector:
         elif cfg['select_way'] == 'gene':
             min_KL, selected_client_ids = self.genetic(temp_client_ids, num_clients)
         elif cfg['select_way'] == 'rand':
-            selected_client_ids = np.random.choice(list(temp_client_ids), size=num_clients, replace=False)
+            # np.random.seed(time.time())
+            # selected_client_ids = np.random.choice(list(temp_client_ids), size=num_clients, replace=False)
+            min_KL, selected_client_ids = self.dyna(temp_client_ids, num_clients)
+            selected_client_ids = random.sample(list(temp_client_ids), len(selected_client_ids))
 
             comb_prob = self.cal_joint_prob_distribution(selected_client_ids)
             min_KL = self.cal_KL_divergence(comb_prob, self.global_label_distribution)
@@ -219,15 +240,15 @@ class ClientSelector:
             raise NotImplementedError
         return min_KL, selected_client_ids
 
-    def assign_freq_interval(self, client_ids, freq_interval, local_gradient_update, max_local_gradient_update):
-        if local_gradient_update + freq_interval > max_local_gradient_update:
-            freq_interval = max_local_gradient_update - local_gradient_update + 1
-        if hasattr(client_ids, '__iter__'):
-            for client_id in client_ids:
-                self.clients[client_id].freq_interval = freq_interval
-        else:
-            self.clients[client_ids].freq_interval = freq_interval
-        return
+    # def assign_freq_interval(self, client_ids, freq_interval, local_gradient_update, max_local_gradient_update):
+    #     if local_gradient_update + freq_interval > max_local_gradient_update:
+    #         freq_interval = max_local_gradient_update - local_gradient_update + 1
+    #     if hasattr(client_ids, '__iter__'):
+    #         for client_id in client_ids:
+    #             self.clients[client_id].freq_interval = freq_interval
+    #     else:
+    #         self.clients[client_ids].freq_interval = freq_interval
+    #     return
 
     def select_clients(self, local_gradient_update, prev_selected_client_ids, clients):
         new_selected_client_ids = []
@@ -263,7 +284,7 @@ class ClientSelector:
         return selected_client_ids, new_selected_client_ids
 
 
-    def compute_selection_probability(self, freq_clients_list):
+    def compute_selection_probability(self, freq_clients_list, freq_indicator):
         freq_flatten = [client for sublist in freq_clients_list for client in sublist]
 
         # Count the occurrences of each client ID
@@ -273,101 +294,281 @@ class ClientSelector:
         total_high_freq_selections = len(freq_flatten)
 
         # Calculate selection probability for each client
-        freq_probabilities = {client: 0 for client in range(cfg['num_clients'])}
-
+        if cfg['client_ratio'] == '1-0':
+            freq_probabilities = {client: 0 for client in range(cfg['num_clients'])}
+        elif cfg['server_ratio'] == '1-0':
+            if freq_indicator == 'high_freq':
+                freq_probabilities = {client: 0 for client in range(cfg['num_clients']) if self.clients[client].freq_interval == cfg['high_freq_interval']}
+            elif freq_indicator == 'low_freq':
+                freq_probabilities = {client: 0 for client in range(cfg['num_clients']) if self.clients[client].freq_interval == cfg['low_freq_interval']}
+        # freq_probabilities = {client: 0 for client in range(cfg['num_clients'])}
         # Update selection probability only for selected clients
         for client, count in freq_counts.items():
-            freq_probabilities[client] = count / total_high_freq_selections
+            freq_probabilities[client] = round(count / total_high_freq_selections, 3)
 
-        return freq_probabilities
+        res = []
+        for key, val in freq_probabilities.items():
+            res.append(val)
+        return res
     
     def preprocess_for_client_selection(self):
         # dynamic scenario
         start_time = time.time()
 
-        if cfg['client_ratio'] == '1-0':
-            temp_high_freq_clients = None
-            temp_low_freq_clients = None
+        # if cfg['client_ratio'] == '1-0':
+        temp_high_freq_clients = None
+        temp_low_freq_clients = None
 
-            for local_gradient_update in range(cfg['max_local_gradient_update']):
-                if temp_high_freq_clients is not None and local_gradient_update % cfg['high_freq_interval'] == 0:
-                    self.total_client_ids |= set(temp_high_freq_clients)
+        for local_gradient_update in range(cfg['max_local_gradient_update']):
+            cur_round_clients = set(random.sample(self.total_client_ids, cfg['num_active_clients']))
+            if temp_high_freq_clients is not None and local_gradient_update % cfg['high_freq_interval'] == 0:
+                cur_round_clients |= set(temp_high_freq_clients)
 
-                if temp_low_freq_clients is not None and local_gradient_update % cfg['low_freq_interval'] == 0:
-                    self.total_client_ids |= set(temp_low_freq_clients)
+            if temp_low_freq_clients is not None and local_gradient_update % cfg['low_freq_interval'] == 0:
+                cur_round_clients |= set(temp_low_freq_clients)
 
-                if local_gradient_update % cfg['high_freq_interval'] == 0:
-                    temp_KL, temp_high_freq_clients = self.select_way(
-                        self.total_client_ids, math.ceil(cfg['num_active_clients'] * cfg['high_freq_ratio'])
-                    )
-                    self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
-                    self.high_freq_clients_KL_list.append(temp_KL)
-                    self.total_client_ids -= set(temp_high_freq_clients)
+            if local_gradient_update % cfg['high_freq_interval'] == 0:
+                temp_KL, temp_high_freq_clients = self.select_way(
+                    cur_round_clients, math.ceil(cfg['num_active_clients'] * cfg['high_freq_ratio'])
+                )
+                self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
+                self.high_freq_clients_KL_list.append(temp_KL)
+                cur_round_clients -= set(temp_high_freq_clients)
 
-                if cfg['only_high_freq']:
-                    continue
-
-                if local_gradient_update % cfg['low_freq_interval'] == 0:
-                    temp_KL, temp_low_freq_clients = self.select_way(
-                        self.total_client_ids, math.ceil(cfg['num_active_clients'] * cfg['low_freq_ratio'])
-                    )
-                    self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
-                    self.low_freq_clients_KL_list.append(temp_KL)
-                    self.total_client_ids -= set(temp_low_freq_clients)
-
-                if not cfg['resample_clients']:
-                    break
+            if cfg['only_high_freq']:
+                continue
             
-            
+            if local_gradient_update % cfg['low_freq_interval'] == 0:
+                temp_low_freq_clients = list(cur_round_clients)
+
+                comb_prob = self.cal_joint_prob_distribution(temp_low_freq_clients)
+                temp_KL = self.cal_KL_divergence(comb_prob, self.global_label_distribution)
+                # temp_KL, temp_low_freq_clients = self.select_way(
+                #     self.total_client_ids, math.ceil(cfg['num_active_clients'] * cfg['low_freq_ratio'])
+                # )
+                self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
+                self.low_freq_clients_KL_list.append(temp_KL)
+                # self.total_client_ids -= set(temp_low_freq_clients)
+
+            if not cfg['resample_clients']:
+                break
+        
         # fix scenario
-        elif cfg['server_ratio'] == '1-0':
-            temp_high_freq_clients = None
-            temp_low_freq_clients = None
+        # elif cfg['server_ratio'] == '1-0':
+        #     temp_high_freq_clients = None
+        #     temp_low_freq_clients = None
 
-            for local_gradient_update in range(1, cfg['max_local_gradient_update'] + 1):
-                if temp_high_freq_clients and local_gradient_update % cfg['high_freq_interval'] == 0:
-                    self.total_client_ids.add(set(temp_high_freq_clients))
+        #     for local_gradient_update in range(cfg['max_local_gradient_update']):
+        #         if temp_high_freq_clients is not None and local_gradient_update % cfg['high_freq_interval'] == 0:
+        #             self.high_freq_client_ids |= set(temp_high_freq_clients)
 
-                if temp_low_freq_clients and local_gradient_update % cfg['low_freq_interval'] == 0:
-                    self.total_client_ids.add(set(temp_low_freq_clients))
+        #         if temp_low_freq_clients is not None and local_gradient_update % cfg['low_freq_interval'] == 0:
+        #             self.low_freq_client_ids |= set(temp_low_freq_clients)
 
-                if local_gradient_update == 1 or local_gradient_update % cfg['high_freq_interval'] == 0:
-                    temp_high_freq_clients = self.genetic()
-                    self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
-                    self.total_client_ids.remove(set(temp_high_freq_clients))
+        #         if local_gradient_update % cfg['high_freq_interval'] == 0:
+        #             temp_KL, temp_high_freq_clients = self.select_way(
+        #                 self.high_freq_client_ids, math.ceil(cfg['num_active_clients'] * cfg['high_freq_ratio'])
+        #             )
+        #             self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
+        #             self.high_freq_clients_KL_list.append(temp_KL)
+        #             self.high_freq_client_ids -= set(temp_high_freq_clients)
 
-                if cfg['only_high_freq']:
-                    continue
+        #         if cfg['only_high_freq']:
+        #             continue
 
-                if local_gradient_update == 1 or local_gradient_update % cfg['low_freq_interval'] == 0:
-                    temp_low_freq_clients = self.genetic()
-                    self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
-                    self.total_client_ids.remove(set(temp_low_freq_clients))
+        #         if local_gradient_update % cfg['low_freq_interval'] == 0:
+        #             temp_KL, temp_low_freq_clients = self.select_way(
+        #                 self.low_freq_client_ids, math.ceil(cfg['num_active_clients'] * cfg['low_freq_ratio'])
+        #             )
+        #             self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
+        #             self.low_freq_clients_KL_list.append(temp_KL)
+        #             self.low_freq_client_ids -= set(temp_low_freq_clients)
 
+        #         if not cfg['resample_clients']:
+        #             break
         end_time = time.time()
-        print('select way time: ', end_time - start_time, flush=True)
-        high_freq_clients_distribution = self.compute_selection_probability(self.high_freq_clients_list)
-        # print('high_freq_clients_list: ', high_freq_clients_distribution, flush=True)
+        print('select way time: ', end_time - start_time, len(self.high_freq_clients_list[0]), flush=True)
+        high_freq_clients_distribution = self.compute_selection_probability(self.high_freq_clients_list, 'high_freq')
+        # print(self.high_freq_clients_list)
+        print('high_freq_clients_list: ', high_freq_clients_distribution, sum(high_freq_clients_distribution), len(high_freq_clients_distribution), flush=True)
         # print('high_freq_clients_KL_list: ', self.high_freq_clients_KL_list, flush=True)
 
         # Calculating mean and standard deviation
-        mean_value = np.mean(self.high_freq_clients_KL_list)
-        std_value = np.std(self.high_freq_clients_KL_list)
+        high_freq_clients_KL_mean_value = np.mean(self.high_freq_clients_KL_list)
+        high_freq_clients_KL_std_value = np.std(self.high_freq_clients_KL_list)
+        print(f'Mean: {high_freq_clients_KL_mean_value}, Standard Deviation: {high_freq_clients_KL_std_value}')
 
-        print(f'Mean: {mean_value}, Standard Deviation: {std_value}')
-
-        low_freq_clients_distribution = self.compute_selection_probability(self.low_freq_clients_list)
-        # print('low_freq_clients_list: ', low_freq_clients_distribution, flush=True)
+        low_freq_clients_distribution = self.compute_selection_probability(self.low_freq_clients_list, 'low_freq')
+        low_freq_clients_KL_mean_value = np.mean(self.low_freq_clients_KL_list)
+        low_freq_clients_KL_std_value = np.std(self.low_freq_clients_KL_list)
+        # print(f'Mean: {low_freq_clients_KL_mean_value}, Standard Deviation: {low_freq_clients_KL_std_value}', sum(low_freq_clients_KL_mean_value))
+        # print(f'Mean: {mean_value}, Standard Deviation: {std_value}')
+        print('low_freq_clients_list: ', low_freq_clients_distribution, sum(low_freq_clients_distribution), len(low_freq_clients_distribution), flush=True)
         # print('low_freq_clients_KL_list: ', self.low_freq_clients_KL_list, flush=True)
 
         # print('clients_label_distribution', self.clients_label_distribution, flush=True)
+        # self.logger.append(
+        #     {
+        #         f'high_freq_clients_distribution': high_freq_clients_distribution,
+        #         f'low_freq_clients_distribution': low_freq_clients_distribution,
+        #     },
+        #     'train',
+        #     len(low_freq_clients_distribution)
+            # )
+        
         self.logger.append(
             {
                 f'high_freq_clients_distribution': high_freq_clients_distribution,
+            },
+            'train',
+            len(high_freq_clients_distribution)
+            )
+        
+        self.logger.append(
+            {
                 f'low_freq_clients_distribution': low_freq_clients_distribution,
             },
             'train',
             len(low_freq_clients_distribution)
             )
+
+        self.logger.append(
+            {
+                f'high_freq_clients_KL_mean_value': high_freq_clients_KL_mean_value,
+                f'high_freq_clients_KL_std_value': high_freq_clients_KL_std_value,
+                f'low_freq_clients_KL_mean_value': low_freq_clients_KL_mean_value,
+                f'low_freq_clients_KL_std_value': low_freq_clients_KL_std_value
+            },
+            'train',
+            1
+        )
         return
+
+    # def preprocess_for_client_selection(self):
+    #     # dynamic scenario
+    #     start_time = time.time()
+
+    #     if cfg['client_ratio'] == '1-0':
+    #         temp_high_freq_clients = None
+    #         temp_low_freq_clients = None
+
+    #         for local_gradient_update in range(cfg['max_local_gradient_update']):
+    #             if temp_high_freq_clients is not None and local_gradient_update % cfg['high_freq_interval'] == 0:
+    #                 self.total_client_ids |= set(temp_high_freq_clients)
+
+    #             if temp_low_freq_clients is not None and local_gradient_update % cfg['low_freq_interval'] == 0:
+    #                 self.total_client_ids |= set(temp_low_freq_clients)
+
+    #             if local_gradient_update % cfg['high_freq_interval'] == 0:
+    #                 temp_KL, temp_high_freq_clients = self.select_way(
+    #                     self.total_client_ids, math.ceil(cfg['num_active_clients'] * cfg['high_freq_ratio'])
+    #                 )
+    #                 self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
+    #                 self.high_freq_clients_KL_list.append(temp_KL)
+    #                 self.total_client_ids -= set(temp_high_freq_clients)
+
+    #             if cfg['only_high_freq']:
+    #                 continue
+
+    #             if local_gradient_update % cfg['low_freq_interval'] == 0:
+    #                 temp_KL, temp_low_freq_clients = self.select_way(
+    #                     self.total_client_ids, math.ceil(cfg['num_active_clients'] * cfg['low_freq_ratio'])
+    #                 )
+    #                 self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
+    #                 self.low_freq_clients_KL_list.append(temp_KL)
+    #                 self.total_client_ids -= set(temp_low_freq_clients)
+
+    #             if not cfg['resample_clients']:
+    #                 break
+            
+    #     # fix scenario
+    #     elif cfg['server_ratio'] == '1-0':
+    #         temp_high_freq_clients = None
+    #         temp_low_freq_clients = None
+
+    #         for local_gradient_update in range(cfg['max_local_gradient_update']):
+    #             if temp_high_freq_clients is not None and local_gradient_update % cfg['high_freq_interval'] == 0:
+    #                 self.high_freq_client_ids |= set(temp_high_freq_clients)
+
+    #             if temp_low_freq_clients is not None and local_gradient_update % cfg['low_freq_interval'] == 0:
+    #                 self.low_freq_client_ids |= set(temp_low_freq_clients)
+
+    #             if local_gradient_update % cfg['high_freq_interval'] == 0:
+    #                 temp_KL, temp_high_freq_clients = self.select_way(
+    #                     self.high_freq_client_ids, math.ceil(cfg['num_active_clients'] * cfg['high_freq_ratio'])
+    #                 )
+    #                 self.high_freq_clients_list.append(copy.deepcopy(temp_high_freq_clients))
+    #                 self.high_freq_clients_KL_list.append(temp_KL)
+    #                 self.high_freq_client_ids -= set(temp_high_freq_clients)
+
+    #             if cfg['only_high_freq']:
+    #                 continue
+
+    #             if local_gradient_update % cfg['low_freq_interval'] == 0:
+    #                 temp_KL, temp_low_freq_clients = self.select_way(
+    #                     self.low_freq_client_ids, math.ceil(cfg['num_active_clients'] * cfg['low_freq_ratio'])
+    #                 )
+    #                 self.low_freq_clients_list.append(copy.deepcopy(temp_low_freq_clients))
+    #                 self.low_freq_clients_KL_list.append(temp_KL)
+    #                 self.low_freq_client_ids -= set(temp_low_freq_clients)
+
+    #             if not cfg['resample_clients']:
+    #                 break
+    #     end_time = time.time()
+    #     print('select way time: ', end_time - start_time, flush=True)
+    #     high_freq_clients_distribution = self.compute_selection_probability(self.high_freq_clients_list, 'high_freq')
+    #     # print(self.high_freq_clients_list)
+    #     print('high_freq_clients_list: ', high_freq_clients_distribution, sum(high_freq_clients_distribution), len(high_freq_clients_distribution), flush=True)
+    #     # print('high_freq_clients_KL_list: ', self.high_freq_clients_KL_list, flush=True)
+
+    #     # Calculating mean and standard deviation
+    #     high_freq_clients_KL_mean_value = np.mean(self.high_freq_clients_KL_list)
+    #     high_freq_clients_KL_std_value = np.std(self.high_freq_clients_KL_list)
+    #     print(f'Mean: {high_freq_clients_KL_mean_value}, Standard Deviation: {high_freq_clients_KL_std_value}')
+
+    #     low_freq_clients_distribution = self.compute_selection_probability(self.low_freq_clients_list, 'low_freq')
+    #     low_freq_clients_KL_mean_value = np.mean(self.low_freq_clients_KL_list)
+    #     low_freq_clients_KL_std_value = np.std(self.low_freq_clients_KL_list)
+    #     # print(f'Mean: {low_freq_clients_KL_mean_value}, Standard Deviation: {low_freq_clients_KL_std_value}', sum(low_freq_clients_KL_mean_value))
+    #     # print(f'Mean: {mean_value}, Standard Deviation: {std_value}')
+    #     print('low_freq_clients_list: ', low_freq_clients_distribution, sum(low_freq_clients_distribution), len(low_freq_clients_distribution), flush=True)
+    #     # print('low_freq_clients_KL_list: ', self.low_freq_clients_KL_list, flush=True)
+
+    #     # print('clients_label_distribution', self.clients_label_distribution, flush=True)
+    #     # self.logger.append(
+    #     #     {
+    #     #         f'high_freq_clients_distribution': high_freq_clients_distribution,
+    #     #         f'low_freq_clients_distribution': low_freq_clients_distribution,
+    #     #     },
+    #     #     'train',
+    #     #     len(low_freq_clients_distribution)
+    #         # )
+        
+    #     self.logger.append(
+    #         {
+    #             f'high_freq_clients_distribution': high_freq_clients_distribution,
+    #         },
+    #         'train',
+    #         len(high_freq_clients_distribution)
+    #         )
+        
+    #     self.logger.append(
+    #         {
+    #             f'low_freq_clients_distribution': low_freq_clients_distribution,
+    #         },
+    #         'train',
+    #         len(low_freq_clients_distribution)
+    #         )
+
+    #     self.logger.append(
+    #         {
+    #             f'high_freq_clients_KL_mean_value': high_freq_clients_KL_mean_value,
+    #             f'high_freq_clients_KL_std_value': high_freq_clients_KL_std_value,
+    #             f'low_freq_clients_KL_mean_value': low_freq_clients_KL_mean_value,
+    #             f'low_freq_clients_KL_std_value': low_freq_clients_KL_std_value
+    #         },
+    #         'train',
+    #         1
+    #     )
+    #     return
 

@@ -2,7 +2,7 @@ import os
 import itertools
 import json
 import copy
-
+import collections
 # env_dist = os.environ
 # for env in env_dist:
 #     print(env, env_dist[env])
@@ -58,421 +58,29 @@ def make_controls(control_name):
 
 def make_control_list(file):
     controls = []
-    if file == 'dp' or file == 'new_dp':
-        control_name = [[['CIFAR10', 'CIFAR100'], ['cnn'], ['0.1', '0.3'], ['100'], ['non-iid-l-1', 'non-iid-l-2','non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5']]]
+    if file == 'test_select_new' or file == 'test_select_temp':
+        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-2'], 
+                        ['dynamicfl'], ['5'], ['1-0'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3'],  
+                         ['6-1'], [ 'rand', 'dyna'], ['0', '1'], ['0', '1'], ['0']]]
         CIFAR10_controls_3 = make_controls(control_name)
         controls.extend(CIFAR10_controls_3)
-
-        control_name = [[['FEMNIST'], ['cnn'], ['0.1', '0.3'], ['100'], ['non-iid-d-0.01','non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5']]]
-        CIFAR10_controls_4 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_4)
-    elif file == 'cnn':
-
-        # control_name = [[['CIFAR10', 'CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['scaffold', 'fedensemble', 'feddyn', 'fedgen'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-        
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['scaffold', 'fedensemble', 'feddyn', 'fedgen'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_4 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_4)
-        # control_name = [[['CIFAR10', 'CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fednova'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-        
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fednova'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_4 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_4)
-        # control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fedprox', 'fedavg', 'fedensemble', 'scaffold'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-
-        # control_name = [[['CIFAR10', 'CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['scaffold'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fedavg', 'fedprox'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                      ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-        #                      ['5-1', '4-1', '6-1']]]
-            
-        # CIFAR10_controls_1 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_1)
-
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                     ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-        #                     ['5-1', '4-1', '6-1']]]
-        # CIFAR10_controls_2 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_2)
-        # control_name = [[['CIFAR10'], ['cnn'], ['0.1', '0.3', '0.5'], ['100'], ['non-iid-l-1', 'non-iid-l-2','non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                      ['dynamicfl'], ['250'], ['10'], ['nonpre']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-
-        # check baseline
-        control_name = [[['CIFAR10', 'CIFAR100'], ['cnn', 'resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['fedprox', 'fedavg', 'fedensemble', 'fednova', 'fedgen', 'scaffold', 'dynamicsgd'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        CIFAR10_controls_3 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_3)
-
-        # check baseline
-        control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['fedprox', 'fedavg', 'fedensemble', 'fednova', 'fedgen', 'scaffold', 'dynamicsgd'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        CIFAR10_controls_4 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_4)
-    elif file == 'resnet18':
-        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2','non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5'], ['nonpre'], ['0.1-0.9', '0.2-0.8', '0.3-0.7', '0.4-0.6','0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],
-                             ['7-1', '6-1', '5-1'], ['WA'], ['1']]]
-        CIFAR10_controls_3 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_3)
-    
-    elif file == 'cnn_maoge':
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                             ['5-1', '4-1', '6-1']]]
-            
-        CIFAR10_controls_1 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_1)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                            ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                            ['5-1', '4-1', '6-1']]]
-        CIFAR10_controls_2 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_2)
-    elif file == 'high_freq':
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                             ['5-1', '4-1', '6-1'], ['1']]]
-            
-        CIFAR10_controls_1 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_1)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                            ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                            ['5-1', '4-1', '6-1'], ['1']]]
-        CIFAR10_controls_2 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_2)
-    elif file == 'freq_ablation':
-        control_name = [[['CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7'], 
-                        ['6-1', '5-1', '4-1', '3-1'], ['1']]]
-        CIFAR10_controls_7 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_7)
-
-        control_name = [[['CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7'], 
-                        ['6-5', '6-4', '6-3', '6-2.5', '6-2', '6-1', '5-4', '5-3', '5-2.5', '5-2', '5-1', '4-3', '4-2.5', '4-2', '4-1', '3-2.5', '3-2', '3-1']]]
-        CIFAR10_controls_8 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_8)
-    elif file == 'cnn_all':
-
-        # control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                      ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-        #                      ['5-1', '4-1', '6-1']]]
-            
-        # CIFAR10_controls_1 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_1)
-
-        # control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                     ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-        #                     ['5-1', '4-1', '6-1']]]
-        # CIFAR10_controls_2 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_2)
-
-        # control_name = [[['CIFAR10', 'CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fedprox', 'fedavg', 'fedensemble', 'scaffold', 'fedgen', 'scaffold', 'dynamicsgd'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-
-        # control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                 ['fedprox', 'fedavg', 'fedensemble', 'scaffold', 'fedgen', 'scaffold', 'dynamicsgd'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        # CIFAR10_controls_3 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_3)
-        pass
-    elif file == 'communication_cost':
-        # check_communicatoin_cost
-        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
-        CIFAR10_controls_5 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_5)
-
-        # # check_communicatoin_cost
-        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
-        CIFAR10_controls_6 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_6)
-
-        # check_communicatoin_cost
-        control_name = [[['CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
-        CIFAR10_controls_7 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_7)
-
-        # # check_communicatoin_cost
-        control_name = [[['CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
-        CIFAR10_controls_8 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_8)
-
-        # check_communicatoin_cost
-        control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'],  
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
+    elif file == 'test_mlsys':
+        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2'], 
+                        ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],  ['1-0'], 
+                         ['6-1'], [ 'rand', 'dyna'], ['0'], ['0'], ['0']]]
         CIFAR10_controls_9 = make_controls(control_name)
         controls.extend(CIFAR10_controls_9)
 
-        # check_communicatoin_cost
-        control_name = [[['FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.01', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                        ['6-1', '5-1', '4-1'], ['0'], ['1']]]
-        CIFAR10_controls_10 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_10)
-
-        # check_communicatoin_cost
-        control_name = [[['CIFAR100'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2',  'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['dynamicfl'], ['5'],['1-0'], ['0.3-0.7'], 
-                        ['6-5', '6-4', '6-3', '6-2.5', '6-2', '6-1', '5-4', '5-3', '5-2.5', '5-2', '5-1', '4-3', '4-2.5', '4-2', '4-1', '3-2.5', '3-2', '3-1'], ['0'], ['1']]]
-        CIFAR10_controls_11 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_11)
-        # --- test demo
-        # control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1'], 
-        #                      ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4'], ['1-0'], 
-        #                      ['5-1', '4-1']]]
-            
-        # CIFAR10_controls_1 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_1)
-
-        # control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-        #                     ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-        #                     ['5-1', '4-1', '6-1']]]
-        # CIFAR10_controls_2 = make_controls(control_name)
-        # controls.extend(CIFAR10_controls_2)
-
-    elif file == 'resnet18_maoge':
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                    ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                    ['5-1', '4-1', '6-1']]]
-            
-        CIFAR10_controls_1 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_1)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                    ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                    ['5-1', '4-1', '6-1']]]
-        CIFAR10_controls_2 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_2)
-    
-    elif file == 'resnet18_maoge_chongfu':
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                    ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                    ['5-1', '4-1', '6-1']]]
-            
-        CIFAR10_controls_1 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_1)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                    ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                    ['5-1', '4-1', '6-1']]]
-        CIFAR10_controls_2 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_2)
-    
-    elif file == 'resnet18_all':
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                             ['dynamicfl'], ['5'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], ['1-0'], 
-                             ['5-1', '4-1', '6-1']]]
-            
-        CIFAR10_controls_1 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_1)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                            ['dynamicfl'], ['5'], ['1-0'], ['0.3-0.7', '0.6-0.4', '0.9-0.1'], 
-                            ['5-1', '4-1', '6-1']]]
-        CIFAR10_controls_2 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_2)
-
-        control_name = [[['CIFAR10', 'CIFAR100', 'FEMNIST'], ['resnet18'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2', 'non-iid-d-0.1', 'non-iid-d-0.3'], 
-                        ['fedprox', 'fedavg', 'fedensemble', 'scaffold'], ['5'], ['1-0'], ['1-0'], ['6-1']]]
-        CIFAR10_controls_3 = make_controls(control_name)
-        controls.extend(CIFAR10_controls_3)
-        a = 5
-    # if file == 'fs':
-    #     control_name = [[['fs']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'ps':
-    #     control_name = [[['250', '4000']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['250', '1000']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['2500', '10000']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'cd':
-    #     control_name = [[['250', '4000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['250', '1000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'], ['1']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['2500', '10000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'],
-    #                      ['1']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'ub':
-    #     control_name = [
-    #         [['250', '4000'], ['fix-mix'], ['100'], ['0.1'], ['non-iid-d-0.1', 'non-iid-d-0.3'], ['5'], ['0.5'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [
-    #         [['250', '1000'], ['fix-mix'], ['100'], ['0.1'], ['non-iid-d-0.1', 'non-iid-d-0.3'], ['5'], ['0.5'], ['1']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['2500', '10000'], ['fix-mix'], ['100'], ['0.1'], ['non-iid-d-0.1', 'non-iid-d-0.3'], ['5'],
-    #                      ['0.5'], ['1']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'loss':
-    #     control_name = [[['4000'], ['fix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls
-    # elif file == 'local-epoch':
-    #     control_name = [[['4000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['1'], ['0.5'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls
-    # elif file == 'gm':
-    #     control_name = [[['4000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls
-    # elif file == 'sbn':
-    #     control_name = [[['250', '4000'], ['fix-mix'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'], ['0']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls
-    # elif file == 'alternate':
-    #     control_name = [[['4000'], ['fix-batch'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'],
-    #                      ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls_1 = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['4000'], ['fix', 'fix-batch'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['5'], ['0.5'],
-    #                      ['1'], ['0']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls_2 = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls_1 + cifar10_controls_2
-    # elif file == 'fl':
-    #     control_name = [
-    #         [['fs'], ['sup'], ['100'], ['0.1'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'],
-    #          ['0.5'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [
-    #         [['fs'], ['sup'], ['100'], ['0.1'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'],
-    #          ['0.5'], ['1']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [
-    #         [['fs'], ['sup'], ['100'], ['0.1'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'],
-    #          ['0.5'], ['1']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'fsgd':
-    #     control_name = [[['4000'], ['fix-fsgd'], ['100'], ['0.1'], ['iid', 'non-iid-l-2'], ['0'], ['0'], ['1']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls
-    # elif file == 'frgd':
-    #     control_name = [
-    #         [['250', '4000'], ['fix-frgd'], ['100'], ['0.1'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'],
-    #          ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [
-    #         [['250', '1000'], ['fix-frgd'], ['100'], ['0.1'], ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'],
-    #          ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['2500', '10000'], ['fix-frgd'], ['100'], ['0.1'],
-    #                      ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # elif file == 'fmatch':
-    #     control_name = [[['250', '4000'], ['fix-fmatch'], ['100'], ['0.1'],
-    #                      ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['CIFAR10']]
-    #     model_names = [['wresnet28x2']]
-    #     cifar10_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['250', '1000'], ['fix-fmatch'], ['100'], ['0.1'],
-    #                      ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['SVHN']]
-    #     model_names = [['wresnet28x2']]
-    #     svhn_controls = make_controls(data_names, model_names, control_name)
-    #     control_name = [[['2500', '10000'], ['fix-fmatch'], ['100'], ['0.1'],
-    #                      ['iid', 'non-iid-d-0.1', 'non-iid-d-0.3', 'non-iid-l-2'], ['5'], ['0.5'], ['1'], ['0']]]
-    #     data_names = [['CIFAR100']]
-    #     model_names = [['wresnet28x8']]
-    #     cifar100_controls = make_controls(data_names, model_names, control_name)
-    #     controls = cifar10_controls + svhn_controls + cifar100_controls
-    # else:
-        # raise ValueError('Not valid file')
+        control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2'], 
+                        ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],  ['1-0'], 
+                         ['6-1'], [ 'rand', 'dyna'], ['0'], ['0'], ['1']]]
+        CIFAR10_controls_9 = make_controls(control_name)
+        controls.extend(CIFAR10_controls_9)
+        # control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-2'], 
+        #                 ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],  ['1-0'], 
+        #                  ['6-1'], ['dyna', 'rand'], ['0', '1'], ['0', '1'], ['0']]]
+        # CIFAR10_controls_3 = make_controls(control_name)
+        # controls.extend(CIFAR10_controls_3)
     return controls
 
 
@@ -494,6 +102,12 @@ def main():
     elif args['type'] == 'freq_ablation':
         num_experiments = 1
     elif args['type'] == 'communication_cost':
+        num_experiments = 1
+    elif args['type'] == 'test_select_new':
+        num_experiments = 1
+    elif args['type'] == 'test_select_temp':
+        num_experiments = 1
+    elif args['type'] == 'test_mlsys':
         num_experiments = 1
     else:
         raise ValueError('Not valid type')
@@ -829,6 +443,59 @@ def make_df_history(extracted_processed_result_history):
                 # print('\n')
                 df[df_name].append(
                     pd.DataFrame(data=extracted_processed_result_history[exp_name][k].reshape(1, -1), index=index_name))
+                
+
+
+    # [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-1', 'non-iid-l-2'], 
+    #                     ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],  ['1-0'], 
+    #                      ['6-1'], ['dyna', 'rand'], ['0'], ['0'], ['0', '1']]]
+        elif len(control) == 14:
+            data_name, model_name, active_rate, num_clients, data_split_mode, algo_mode, \
+            epoch, server_ratio, client_ratio, freq, select_way, only_high_freq, cal_communication_cost, fix_dyna_count = control
+            df_name = '_'.join(
+                [data_name, model_name, active_rate, num_clients, data_split_mode, algo_mode, \
+            epoch, server_ratio, client_ratio, freq, select_way, only_high_freq, cal_communication_cost, fix_dyna_count])
+            
+            def average_corresponding_positions(data):
+                return np.mean(data, axis=0)
+            
+            max_mean_plus_se = []
+            for k in extracted_processed_result_history[exp_name]:
+                index_name = ['_'.join([active_rate, data_split_mode, k])]
+                if 'distribution_mean' in k:
+                    # temp_data = extracted_processed_result_history[exp_name][k].reshape(1, -1)
+                    # temp_data = average_corresponding_positions(temp_data)
+                    temp_data = extracted_processed_result_history[exp_name][k]
+                    if isinstance(temp_data, collections.abc.Iterable):
+                        temp_data = average_corresponding_positions(temp_data)
+                        df[df_name].append(
+                                pd.DataFrame(data=temp_data.reshape(1, -1), index=index_name))
+                else:
+                    if ('Accuracy' in k and 'mean_of_max' in k) or ('high_freq_clients_KL_mean_value' in k and 'mean_of_max' in k):
+                        df[df_name].append(
+                            pd.DataFrame(data=extracted_processed_result_history[exp_name][k].reshape(1, -1), index=index_name))
+
+                if 'Accuracy' in k and 'mean_of_max' in k:
+                    max_mean_plus_se.append(str(extracted_processed_result_history[exp_name][k].reshape(1, -1)[0][0]))
+                # first is mean_of_max, second is std_of_max
+                if 'Accuracy' in k and 'se_of_max' in k:
+                    max_mean_plus_se.append('plus/minus')
+                    # a = extracted_processed_result_history[exp_name][k].reshape(1, -1)
+                    # b = extracted_processed_result_history[exp_name][k].reshape(1, -1)[0]
+                    max_mean_plus_se.append(str(extracted_processed_result_history[exp_name][k].reshape(1, -1)[0][0]))
+                    res = ' '.join(max_mean_plus_se)
+                    if 'non-iid-l-1' in exp_name:
+                        df_of_max_non_iid_l_1[df_name].append(
+                        pd.DataFrame(data=[res], index=index_name))
+                    elif 'non-iid-l-2' in exp_name:
+                        df_of_max_non_iid_l_2[df_name].append(
+                        pd.DataFrame(data=[res], index=index_name))
+                    elif 'non-iid-d-0.1' in exp_name:
+                        df_of_max_non_iid_d_01[df_name].append(
+                        pd.DataFrame(data=[res], index=index_name))
+                    elif 'non-iid-d-0.3' in exp_name:
+                        df_of_max_non_iid_d_03[df_name].append(
+                        pd.DataFrame(data=[res], index=index_name))
                 # if 'Accuracy' in k and 'mean_of_max' in k:
                 #     max_mean_plus_se.append(str(extracted_processed_result_history[exp_name][k].reshape(1, -1)[0][0]))
                 # # first is mean_of_max, second is std_of_max
@@ -880,10 +547,10 @@ def make_df_history(extracted_processed_result_history):
         else:
             raise ValueError('Not valid control')
     write_xlsx('{}/result_history.xlsx'.format(result_path), df)
-    write_max_xlsx('{}/result_history_l_1_only_max.xlsx'.format(result_path), df_of_max_non_iid_l_1)
-    write_max_xlsx('{}/result_history_l_2_only_max.xlsx'.format(result_path), df_of_max_non_iid_l_2)
-    write_max_xlsx('{}/result_history_d_01_only_max.xlsx'.format(result_path), df_of_max_non_iid_d_01)
-    write_max_xlsx('{}/result_history_d_03_only_max.xlsx'.format(result_path), df_of_max_non_iid_d_03)
+    # write_max_xlsx('{}/result_history_l_1_only_max.xlsx'.format(result_path), df_of_max_non_iid_l_1)
+    # write_max_xlsx('{}/result_history_l_2_only_max.xlsx'.format(result_path), df_of_max_non_iid_l_2)
+    # write_max_xlsx('{}/result_history_d_01_only_max.xlsx'.format(result_path), df_of_max_non_iid_d_01)
+    # write_max_xlsx('{}/result_history_d_03_only_max.xlsx'.format(result_path), df_of_max_non_iid_d_03)
     return df
 
 

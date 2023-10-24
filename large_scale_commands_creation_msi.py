@@ -728,9 +728,15 @@ def main():
                 # CIFAR10_controls_9 = make_controls(script_name, init_seeds, device, resume_mode, control_name)
                 # controls.extend(CIFAR10_controls_9)
 
-                control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-2'], 
-                        ['dynamicfl'], ['5'], ['1-0'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3'],  
-                         ['6-1'], ['dyna', 'rand'], ['0', '1'], ['0'], ['0']]]
+                # control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-l-2'], 
+                #         ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'], ['1-0'],  
+                #          ['6-1'], ['dyna', 'rand'], ['0', '1'], ['0', '1'], ['0']]]
+                # CIFAR10_controls_9 = make_controls(script_name, init_seeds, device, resume_mode, control_name)
+                # controls.extend(CIFAR10_controls_9)
+                # 'non-iid-d-0.1', 'non-iid-d-0.3', 
+                control_name = [[['CIFAR10'], ['cnn'], ['0.1'], ['100'], ['non-iid-d-0.1', 'non-iid-d-0.3'], 
+                        ['dynamicfl'], ['5'], ['0.2-0.8', '0.3-0.7', '0.4-0.6', '0.5-0.5', '0.6-0.4', '0.7-0.3', '0.8-0.2', '0.9-0.1'],  ['1-0'], 
+                         ['6-1'], ['dyna', 'rand'], ['0'], ['0'], ['0', '1']]]
                 CIFAR10_controls_9 = make_controls(script_name, init_seeds, device, resume_mode, control_name)
                 controls.extend(CIFAR10_controls_9)
 
@@ -900,7 +906,7 @@ def main():
         if is_femnist:
             temp_mem = int(3 * temp_mem)
         s = '#!/bin/bash -l\n'
-        s += '#SBATCH --time=13:30:00\n'
+        s += '#SBATCH --time=15:30:00\n'
         s += f'#SBATCH --nodes={task_parallel_num}\n'
         s += f'#SBATCH --ntasks={task_parallel_num}\n'
         # s += '#SBATCH --cpus-per-task=2'
@@ -941,7 +947,7 @@ def main():
         run_file.write(s)
         run_file.close()
 
-        run_file = open('./{}.bash'.format(f'random_ablation_fedavg'), 'a')
+        run_file = open('./{}.bash'.format(f'dyna_abla'), 'a')
         command = f'mkdir {res_path}\nsbatch {filename}.pbs --wait\n'
         run_file.write(command)
         run_file.close()

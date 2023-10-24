@@ -83,21 +83,26 @@ class Communication:
     
     def cal_active_clients_communication_cost(
         self, 
-        clients,
+        # clients,
         client_ids
     ):
-        return sum([clients[client_id].communication_cost for client_id in client_ids])
+        return sum([self.client_to_communication_cost[client_id] for client_id in client_ids])
     
     def initialize_clients_communication_info(
         self,
         client_ids: list[int]
     ):
         temp_client_ids = copy.deepcopy(client_ids)
-        selected_client_ids = np.random.choice(
-            temp_client_ids, 
-            size=int(cfg['high_freq_ratio'] * len(temp_client_ids)), 
-            replace=False
+        # selected_client_ids = np.random.choice(
+        #     temp_client_ids, 
+        #     size=int(cfg['high_freq_ratio'] * len(temp_client_ids)), 
+        #     replace=False
+        # )
+        selected_client_ids = random.sample(
+            list(temp_client_ids), 
+            int(cfg['high_freq_ratio'] * len(temp_client_ids)), 
         )
+
         for client_id in selected_client_ids:
             self.client_to_freq_interval[client_id] = cfg['high_freq_interval']
             self.client_to_communication_cost[client_id] = self.client_high_freq_communication_cost
