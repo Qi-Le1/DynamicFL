@@ -1,0 +1,29 @@
+---
+# control
+
+control:
+  data_name: CIFAR10
+  model_name: cnn
+  active_rate: '0.1'
+  num_clients: '100'
+  data_split_mode: 'non-iid-d-0.3'
+  algo_mode: 'fedgen'
+  local_epoch: '5'
+  server_ratio: '1-0'
+  client_ratio: '1-0'
+  number_of_freq_levels: '6-1'
+  # only_high_freq: '0'
+  # cal_communication_cost: '0'
+
+  
+  
+# experiment
+pin_memory: True
+num_workers: 0
+init_seed: 0
+num_experiments: 1
+log_interval: 0.25
+device: cpu
+world_size: 1
+resume_mode: 0
+verbose: False
