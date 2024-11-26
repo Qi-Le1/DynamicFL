@@ -2,7 +2,7 @@
 
 [IEEE Big Data 2024] This is an implementation of [DynamicFL: Dynamic Federated Learning with Communication Resource Allocation](https://arxiv.org/abs/2409.04986)
 
-<img src="/asset/motivation.pdf">
+![Motivation Figure](asset/motivation.png)
 
 ## Requirements
 
