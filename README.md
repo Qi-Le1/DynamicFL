@@ -1,6 +1,6 @@
 # DynamicFL: Dynamic Federated Learning with Communication Resource Allocation
 
-[IEEE Big Data 2024] This is an implementation of [DynamicFL: Dynamic Federated Learning with Communication Resource Allocation](https://arxiv.org/abs/2409.04986)
+[IEEE Big Data 2024 Best Student Paper] This is an implementation of [DynamicFL: Dynamic Federated Learning with Communication Resource Allocation](https://arxiv.org/abs/2409.04986)
 
 ![Motivation Figure](asset/motivation.png)
 
@@ -34,8 +34,9 @@
   ```
 
   
+## License
 
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 
 
